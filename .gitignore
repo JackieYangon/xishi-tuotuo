@@ -1,0 +1,31 @@
+node_modules/
+.tools/
+.artifacts/
+coverage/
+dist/
+tmp/
+temp/
+*.log
+*.tmp
+*.tmp-*
+.DS_Store
+Thumbs.db
+
+# Local deployment identifiers and developer settings
+.env*
+!.env.example
+project.config.json
+project.private.config.json
+miniprogram/config.local.js
+miniprogram/version.js
+cloudfunctions/xishiTuotuoApi/local-config.json
+
+# Credentials, exported personal data, and verification artifacts
+*.pem
+*.key
+*.xlsx
+*.csv
+exports/
+screenshots/
+test-results/
+playwright-report/

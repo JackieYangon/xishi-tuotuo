@@ -1,0 +1,353 @@
+'use strict';
+
+const crypto = require('node:crypto');
+const COLLECTION = 'xishi_tuotuo_groups';
+const STORAGE_PREFIX = 'xishi-tuotuo/';
+const TYPES = ['tasks', 'items', 'vendors', 'guests', 'tables', 'timeline', 'lodgings'];
+const DAY = 86400000;
+const MAX_DOCUMENT_BYTES = 700 * 1024;
+const MAX_RECORDS = { tasks: 300, items: 300, vendors: 100, guests: 500, tables: 100, timeline: 150, lodgings: 150 };
+
+class AppError extends Error {
+  constructor(code, message) { super(message); this.code = code; }
+}
+function fail(code, message) { throw new AppError(code, message); }
+function object(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('INVALID_INPUT', '提交的数据格式不正确');
+  return value;
+}
+function text(value, label, max = 200, required = false) {
+  if (value === undefined || value === null) value = '';
+  if (typeof value !== 'string') fail('INVALID_INPUT', `${label}应为文字`);
+  value = value.trim();
+  if (value.length > max || (required && !value)) fail('INVALID_INPUT', `${label}${required ? '不能为空，且' : ''}不能超过 ${max} 字`);
+  return value;
+}
+function number(value, label, min, max, integer = false, fallback) {
+  if (value === undefined || value === '') value = fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) fail('INVALID_INPUT', `${label}应为 ${min} 至 ${max} 范围内的${integer ? '整数' : '数字'}`);
+  return value;
+}
+function bool(value, fallback = false) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'boolean') fail('INVALID_INPUT', '开关选项格式不正确');
+  return value;
+}
+function choice(value, values, fallback, label) {
+  value = value === undefined ? fallback : value;
+  if (!values.includes(value)) fail('INVALID_INPUT', `${label}选项不正确`);
+  return value;
+}
+function date(value, label) {
+  value = text(value, label, 10);
+  if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(`${value}T12:00:00Z`)) || new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) !== value)) fail('INVALID_INPUT', `${label}应为有效日期`);
+  return value;
+}
+function id(value, label = '记录标识') {
+  value = text(value, label, 64, true);
+  if (!/^[a-zA-Z0-9_-]+$/.test(value)) fail('INVALID_INPUT', `${label}格式不正确`);
+  return value;
+}
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+function hash(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function assertSize(group) {
+  if (Buffer.byteLength(JSON.stringify(group), 'utf8') > MAX_DOCUMENT_BYTES) fail('LIMIT_REACHED', '本群组资料已接近容量上限，请先导出并精简不需要的内容');
+}
+function member(group, userId) {
+  if (!group || !group.members.some(entry => entry.id === userId)) fail('FORBIDDEN', '你不是此筹备群组的成员');
+}
+function revision(group, expected) {
+  if (!Number.isSafeInteger(expected) || expected !== group.revision) fail('CONFLICT', '其他成员刚刚更新了资料，请刷新后重试，当前内容未被覆盖');
+}
+function privateGroup(group, userId) {
+  const result = clone(group);
+  delete result._id;
+  delete result.invitations;
+  delete result.invitationHashes;
+  delete result.memberIds;
+  delete result.media;
+  result.selfId = userId;
+  return result;
+}
+function profile(input, existing, media) {
+  object(input);
+  const next = Object.assign({}, existing);
+  const stringFields = { title: 60, bride: 30, groom: 30, venue: 100, address: 200, invitationText: 2000 };
+  Object.entries(stringFields).forEach(([key, max]) => { if (input[key] !== undefined) next[key] = text(input[key], key === 'title' ? '婚礼名称' : '婚礼资料', max); });
+  if (!next.title) next.title = '我们的婚礼';
+  if (input.date !== undefined) next.date = date(input.date, '婚礼日期');
+  ['latitude', 'longitude'].forEach(key => {
+    if (input[key] !== undefined) next[key] = input[key] === '' || input[key] === null ? null : number(input[key], '地图坐标', key === 'latitude' ? -90 : -180, key === 'latitude' ? 90 : 180);
+  });
+  if ((next.latitude === null) !== (next.longitude === null)) fail('INVALID_INPUT', '请同时设置完整地图坐标');
+  if (input.theme !== undefined) next.theme = choice(input.theme, ['rose', 'ivory', 'red'], 'rose', '请柬主题');
+  for (const [key, kind] of [['coverFileID', 'image'], ['musicFileID', 'audio']]) {
+    if (input[key] !== undefined) {
+      const fileID = text(input[key], '媒体文件', 500);
+      if (fileID && !media.some(file => file.fileID === fileID && file.kind === kind)) fail('FORBIDDEN', '只能使用本群组上传的媒体');
+      next[key] = fileID;
+    }
+  }
+  return next;
+}
+function assignee(value, group) {
+  value = text(value, '负责人', 128);
+  if (value && !group.members.some(entry => entry.id === value)) fail('INVALID_INPUT', '负责人已不在群组中，请重新选择');
+  return value;
+}
+function record(type, input, group, recordId) {
+  object(input);
+  const result = { id: recordId };
+  const note = () => text(input.note, '备注', 1000);
+  if (type === 'tasks') Object.assign(result, {
+    title: text(input.title, '事项名称', 100, true), dueDate: date(input.dueDate, '截止日期'), assigneeId: assignee(input.assigneeId, group), done: bool(input.done), note: note()
+  });
+  if (type === 'items') Object.assign(result, {
+    name: text(input.name, '物品名称', 100, true), quantity: number(input.quantity, '数量', 1, 100000, true, 1), status: choice(input.status, ['pending', 'ordered', 'ready'], 'pending', '准备状态'), assigneeId: assignee(input.assigneeId, group), note: note()
+  });
+  if (type === 'vendors') Object.assign(result, {
+    name: text(input.name, '商家名称', 100, true), category: text(input.category, '商家分类', 40), contact: text(input.contact, '联系人', 50), phone: text(input.phone, '联系电话', 40), quote: number(input.quote, '报价', 0, 100000000, false, 0), status: choice(input.status, ['pending', 'contacted', 'booked'], 'pending', '联系状态'), note: note()
+  });
+  if (type === 'guests') Object.assign(result, {
+    name: text(input.name, '宾客姓名', 60, true), side: choice(input.side, ['bride', 'groom', 'shared'], 'shared', '宾客分组'), relation: text(input.relation, '关系', 40), phone: text(input.phone, '联系电话', 40), partySize: number(input.partySize, '出席人数', 1, 30, true, 1), attendance: choice(input.attendance, ['pending', 'yes', 'no'], 'pending', '出席状态'), needsLodging: bool(input.needsLodging), note: note(), tableId: text(input.tableId, '桌位', 64)
+  });
+  if (type === 'tables') Object.assign(result, { name: text(input.name, '桌名', 40, true), capacity: number(input.capacity, '每桌人数', 1, 30, true, 10) });
+  if (type === 'timeline') {
+    const time = text(input.time, '时间', 5, true);
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) fail('INVALID_INPUT', '请输入有效时间，如 08:30');
+    Object.assign(result, { time, title: text(input.title, '环节名称', 100, true), place: text(input.place, '地点', 100), assigneeId: assignee(input.assigneeId, group), note: note() });
+  }
+  if (type === 'lodgings') {
+    if (!Array.isArray(input.guestIds) || input.guestIds.length > 30) fail('INVALID_INPUT', '每个房间最多安排 30 组宾客');
+    const guestIds = [...new Set(input.guestIds.map(value => id(value, '宾客标识')))];
+    if (guestIds.some(guestId => !group.guests.some(guest => guest.id === guestId))) fail('INVALID_INPUT', '住宿安排包含已删除的宾客');
+    const checkIn = date(input.checkIn, '入住日期');
+    const checkOut = date(input.checkOut, '退房日期');
+    if (checkIn && checkOut && checkOut < checkIn) fail('INVALID_INPUT', '退房日期不能早于入住日期');
+    Object.assign(result, { hotel: text(input.hotel, '酒店名称', 100, true), room: text(input.room, '房间', 40), checkIn, checkOut, guestIds, note: note() });
+  }
+  return result;
+}
+function checkSeating(group, guest, autoUnseat = false) {
+  if (!guest.tableId) return '';
+  const table = group.tables.find(entry => entry.id === guest.tableId);
+  const invalid = !table || guest.attendance === 'no';
+  const occupied = group.guests.filter(entry => entry.id !== guest.id && entry.tableId === guest.tableId && entry.attendance !== 'no').reduce((sum, entry) => sum + entry.partySize, 0);
+  if (invalid || occupied + guest.partySize > table.capacity) {
+    if (autoUnseat) { guest.tableId = ''; return invalid ? '已取消此宾客原有的桌位安排' : '人数变化超过原桌容量，已移至待排座，请重新安排'; }
+    fail('CAPACITY_EXCEEDED', invalid ? '请为会出席的宾客选择有效桌位' : '此桌剩余座位不足，请选择其他桌位');
+  }
+  return '';
+}
+function defaultTasks(now, weddingDate, randomId) {
+  const tasks = [
+    ['确认婚期与婚礼场地', 180], ['整理双方宾客名单', 120], ['联系婚庆、摄影与化妆团队', 90], ['确认婚纱礼服与试妆', 60], ['准备喜糖、酒水和伴手礼', 30], ['制作并发送电子请柬', 30], ['确认宾客出席和住宿', 14], ['安排婚宴桌位', 7], ['确认婚礼当天流程与负责人', 7], ['检查婚礼当天携带物品', 1]
+  ];
+  return tasks.map(([title, before]) => ({ id: randomId(), title, dueDate: weddingDate ? new Date(Date.parse(`${weddingDate}T12:00:00Z`) - before * DAY).toISOString().slice(0, 10) : '', assigneeId: '', done: false, note: '' }));
+}
+
+function createService({ repo, storage, allowedAppId, now = () => Date.now(), random = bytes => crypto.randomBytes(bytes).toString('hex') }) {
+  const randomId = () => random(12);
+  async function mutate(payload, userId, change, ownerOnly = false) {
+    const groupId = id(payload.groupId, '群组标识');
+    return repo.transact(groupId, async group => {
+      member(group, userId);
+      revision(group, payload.revision);
+      if (ownerOnly && group.ownerId !== userId) fail('FORBIDDEN', '仅群主可以进行此操作');
+      const extra = await change(group) || {};
+      group.memberIds = group.members.map(entry => entry.id);
+      group.revision += 1;
+      group.updatedAt = now();
+      assertSize(group);
+      return { group, result: Object.assign({ group: privateGroup(group, userId) }, extra) };
+    });
+  }
+  async function invitationFor(group, invite, warning = '') {
+    const guest = group.guests.find(entry => entry.id === invite.guestId);
+    if (!guest || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
+    const table = group.tables.find(entry => entry.id === guest.tableId);
+    const publicProfile = clone(group.profile);
+    const fileIDs = [publicProfile.coverFileID, publicProfile.musicFileID].filter(value => value && group.media.some(media => media.fileID === value));
+    const urls = storage && fileIDs.length ? await storage.urls(fileIDs) : {};
+    delete publicProfile.coverFileID;
+    delete publicProfile.musicFileID;
+    return { profile: publicProfile, coverUrl: urls[group.profile.coverFileID] || '', musicUrl: urls[group.profile.musicFileID] || '', guest: { name: guest.name, attendance: guest.attendance, partySize: guest.partySize, needsLodging: guest.needsLodging, note: guest.replyNote || '' }, tableName: table ? table.name : '', warning };
+  }
+  async function findInvitation(token) {
+    token = text(token, '请柬链接', 64, true);
+    if (!/^[a-f0-9]{64}$/.test(token)) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
+    const tokenHash = hash(token);
+    const group = await repo.findByInvitationHash(tokenHash);
+    const invite = group && group.invitations.find(entry => entry.tokenHash === tokenHash);
+    if (!invite || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
+    return { group, invite, tokenHash };
+  }
+  return async function service(event, identity) {
+    try {
+      // Shared environments expose the calling mini program as FROM_*.
+      // Never mix a source AppID with the resource owner's OPENID.
+      const shared = Boolean(identity && (identity.FROM_APPID || identity.FROM_OPENID));
+      const callerAppId = identity && (shared ? identity.FROM_APPID : identity.APPID);
+      const callerOpenId = identity && (shared ? identity.FROM_OPENID : identity.OPENID);
+      if (!/^wx[a-f0-9]{16}$/i.test(allowedAppId || '') || callerAppId !== allowedAppId) fail('APP_NOT_ALLOWED', '云函数尚未配置本小程序身份，请检查本地部署配置');
+      if (!callerOpenId || typeof callerOpenId !== 'string') fail('UNAUTHENTICATED', '请在微信中登录后重试');
+      object(event);
+      const payload = event.payload === undefined ? {} : object(event.payload);
+      const userId = callerOpenId;
+      let data;
+      if (event.action === 'groups.list') {
+        const groups = await repo.listForMember(userId);
+        data = { groups: groups.map(group => ({ id: group.id, title: group.profile.title, date: group.profile.date, memberCount: group.members.length })), userId };
+      } else if (event.action === 'groups.create') {
+        const nickname = text(payload.nickname, '你的称呼', 30, true);
+        const role = text(payload.role, '身份', 20) || '家人';
+        if ((await repo.listForMember(userId)).length >= 20) fail('LIMIT_REACHED', '最多加入 20 个筹备群组');
+        const stamp = now();
+        const group = {
+          id: randomId(), revision: 1, ownerId: userId, joinCode: random(6).toUpperCase(), joinCodeExpiresAt: stamp + 7 * DAY,
+          profile: profile(payload.profile || {}, { title: '我们的婚礼', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null, coverFileID: '', musicFileID: '', invitationText: '诚邀您见证我们的幸福时刻。', theme: 'rose' }, []),
+          members: [{ id: userId, nickname, role }], memberIds: [userId], media: [], invitations: [], invitationHashes: [],
+          tasks: [], items: [], vendors: [], guests: [], tables: [], timeline: [], lodgings: [], createdAt: stamp, updatedAt: stamp
+        };
+        group.tasks = defaultTasks(stamp, group.profile.date, randomId);
+        assertSize(group);
+        await repo.create(group);
+        data = { group: privateGroup(group, userId) };
+      } else if (event.action === 'groups.join') {
+        const code = text(payload.code, '群组邀请码', 12, true).toUpperCase();
+        if (!/^[A-F0-9]{12}$/.test(code)) fail('INVALID_CODE', '群组邀请码不正确或已过期');
+        const nickname = text(payload.nickname, '你的称呼', 30, true);
+        const role = text(payload.role, '身份', 20) || '家人';
+        const match = await repo.findByJoinCode(code);
+        if (!match) fail('INVALID_CODE', '群组邀请码不正确或已过期');
+        data = await repo.transact(match.id, async group => {
+          if (!group || group.joinCode !== code || group.joinCodeExpiresAt < now()) fail('INVALID_CODE', '群组邀请码不正确或已过期');
+          if (group.members.some(entry => entry.id === userId)) return { group, result: { group: privateGroup(group, userId) } };
+          if (group.members.length >= 30) fail('LIMIT_REACHED', '一个筹备群组最多 30 位成员');
+          group.members.push({ id: userId, nickname, role });
+          group.memberIds = group.members.map(entry => entry.id);
+          group.revision += 1;
+          group.updatedAt = now();
+          assertSize(group);
+          return { group, result: { group: privateGroup(group, userId) } };
+        });
+      } else if (event.action === 'groups.get' || event.action === 'media.urls') {
+        const group = await repo.get(id(payload.groupId, '群组标识'));
+        member(group, userId);
+        data = event.action === 'groups.get' ? { group: privateGroup(group, userId) } : { urls: storage ? await storage.urls(group.media.map(entry => entry.fileID)) : {} };
+      } else if (event.action === 'groups.profile') {
+        data = await mutate(payload, userId, group => { group.profile = profile(payload.profile, group.profile, group.media); });
+      } else if (event.action === 'groups.rotateCode') {
+        data = await mutate(payload, userId, group => { group.joinCode = random(6).toUpperCase(); group.joinCodeExpiresAt = now() + 7 * DAY; }, true);
+      } else if (event.action === 'groups.removeMember') {
+        data = await mutate(payload, userId, group => {
+          const memberId = text(payload.memberId, '成员标识', 128, true);
+          if (memberId === group.ownerId) fail('INVALID_INPUT', '不能移除群主');
+          if (!group.members.some(entry => entry.id === memberId)) fail('NOT_FOUND', '成员已不在群组中');
+          group.members = group.members.filter(entry => entry.id !== memberId);
+          ['tasks', 'items', 'timeline'].forEach(type => group[type].forEach(entry => { if (entry.assigneeId === memberId) entry.assigneeId = ''; }));
+          group.joinCode = random(6).toUpperCase();
+          group.joinCodeExpiresAt = now() + 7 * DAY;
+        }, true);
+      } else if (event.action === 'records.save') {
+        data = await mutate(payload, userId, group => {
+          const type = choice(payload.type, TYPES, '', '记录类型');
+          const input = object(payload.record);
+          const existing = input.id ? group[type].find(entry => entry.id === id(input.id)) : null;
+          if (input.id && !existing) fail('NOT_FOUND', '此记录已删除，请刷新');
+          if (!existing && group[type].length >= MAX_RECORDS[type]) fail('LIMIT_REACHED', '此类记录已达到群组容量上限');
+          const next = record(type, input, group, existing ? existing.id : randomId());
+          let warning = '';
+          if (type === 'guests') {
+            if (existing && existing.replyNote) next.replyNote = existing.replyNote;
+            warning = checkSeating(group, next, Boolean(existing && existing.tableId === next.tableId));
+          }
+          if (type === 'tables') {
+            const occupied = group.guests.filter(guest => guest.tableId === next.id && guest.attendance !== 'no').reduce((sum, guest) => sum + guest.partySize, 0);
+            if (occupied > next.capacity) fail('CAPACITY_EXCEEDED', `此桌已安排 ${occupied} 人，请先调整宾客再减少座位`);
+          }
+          if (existing) group[type] = group[type].map(entry => entry.id === existing.id ? next : entry);
+          else group[type].push(next);
+          return { warning };
+        });
+      } else if (event.action === 'records.delete') {
+        data = await mutate(payload, userId, group => {
+          const type = choice(payload.type, TYPES, '', '记录类型');
+          const recordId = id(payload.id);
+          if (!group[type].some(entry => entry.id === recordId)) fail('NOT_FOUND', '此记录已删除，请刷新');
+          group[type] = group[type].filter(entry => entry.id !== recordId);
+          if (type === 'tables') group.guests.forEach(guest => { if (guest.tableId === recordId) guest.tableId = ''; });
+          if (type === 'guests') {
+            group.lodgings.forEach(room => { room.guestIds = room.guestIds.filter(guestId => guestId !== recordId); });
+            group.invitations = group.invitations.filter(invite => invite.guestId !== recordId);
+            group.invitationHashes = group.invitations.map(invite => invite.tokenHash);
+          }
+        });
+      } else if (event.action === 'invitations.issue') {
+        data = await mutate(payload, userId, group => {
+          const guestId = id(payload.guestId, '宾客标识');
+          if (!group.guests.some(guest => guest.id === guestId)) fail('NOT_FOUND', '宾客已删除');
+          let invite = group.invitations.find(entry => entry.guestId === guestId && entry.expiresAt > now());
+          if (!invite) {
+            const token = random(32);
+            invite = { guestId, token, tokenHash: hash(token), expiresAt: now() + 366 * DAY };
+            group.invitations = group.invitations.filter(entry => entry.guestId !== guestId);
+            group.invitations.push(invite);
+            group.invitationHashes = group.invitations.map(entry => entry.tokenHash);
+          }
+          return { token: invite.token };
+        });
+      } else if (event.action === 'invitations.get') {
+        const found = await findInvitation(payload.token);
+        data = { invitation: await invitationFor(found.group, found.invite) };
+      } else if (event.action === 'invitations.respond') {
+        const found = await findInvitation(payload.token);
+        const response = object(payload.response);
+        const result = await repo.transact(found.group.id, async group => {
+          const invite = group && group.invitations.find(entry => entry.tokenHash === found.tokenHash);
+          if (!invite || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
+          const guest = group.guests.find(entry => entry.id === invite.guestId);
+          if (!guest) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
+          guest.attendance = choice(response.attendance, ['yes', 'no'], '', '出席状态');
+          guest.partySize = number(response.partySize, '出席人数', 1, 30, true, 1);
+          guest.needsLodging = bool(response.needsLodging);
+          guest.replyNote = text(response.note, '回执留言', 500);
+          const warning = checkSeating(group, guest, true);
+          group.revision += 1;
+          group.updatedAt = now();
+          assertSize(group);
+          return { group, result: { group, invite, warning } };
+        });
+        data = { invitation: await invitationFor(result.group, result.invite, result.warning) };
+      } else if (event.action === 'media.upload') {
+        const group = await repo.get(id(payload.groupId, '群组标识'));
+        member(group, userId);
+        revision(group, payload.revision);
+        if (!storage) fail('UNAVAILABLE', '文件服务暂不可用');
+        if (group.media.length >= 30) fail('LIMIT_REACHED', '本群组最多上传 30 个请柬媒体文件');
+        const kind = choice(payload.kind, ['image', 'audio'], '', '媒体类型');
+        if (typeof payload.base64 !== 'string' || payload.base64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.base64)) fail('INVALID_INPUT', '文件格式无效或超过 2 MB');
+        const bytes = Buffer.from(payload.base64, 'base64');
+        if (!bytes.length || bytes.length > 2 * 1024 * 1024) fail('INVALID_INPUT', '文件必须小于 2 MB');
+        const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+        const png = bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+        const mp3 = bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+        if (kind === 'image' ? !(jpeg || png) : !mp3) fail('INVALID_INPUT', kind === 'image' ? '请上传 JPG 或 PNG 图片' : '请上传 MP3 音乐');
+        const cloudPath = `${STORAGE_PREFIX}${group.id}/${randomId()}.${kind === 'audio' ? 'mp3' : png ? 'png' : 'jpg'}`;
+        const fileID = await storage.upload(cloudPath, bytes);
+        try {
+          data = await mutate(payload, userId, current => { current.media.push({ fileID, kind, cloudPath }); return { fileID }; });
+        } catch (error) {
+          await storage.remove(fileID).catch(() => {});
+          throw error;
+        }
+      } else fail('INVALID_ACTION', '不支持此操作，请更新小程序');
+      return { ok: true, data };
+    } catch (error) {
+      if (error instanceof AppError) return { ok: false, error: { code: error.code, message: error.message } };
+      return { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: '云端暂时无法完成操作，请稍后重试；原有数据已保留' } };
+    }
+  };
+}
+
+module.exports = { createService, AppError, COLLECTION, STORAGE_PREFIX, MAX_DOCUMENT_BYTES };

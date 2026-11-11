@@ -1,0 +1,104 @@
+<view class="container seating-page">
+  <view class="seating-heading">
+    <view class="eyebrow">把相聚的位置安排好</view>
+    <view class="title">婚宴排桌</view>
+    <view class="subtitle">围坐一桌，都是重要的人。</view>
+  </view>
+  <view wx:if="loading && !tables.length" class="card empty">正在整理圆桌与宾客…</view>
+  <view wx:elif="error" class="card empty">
+    <view class="error-title">{{noGroup ? '先加入筹备群组' : '暂时没有连接上'}}</view>
+    <view class="muted error-description">{{error}}</view>
+    <button wx:if="noGroup" class="button-primary" bindtap="goGroup">创建或加入群组</button>
+    <button wx:else class="button-secondary" bindtap="load">重新加载</button>
+  </view>
+  <block wx:else>
+    <view class="seating-stats">
+      <view class="seating-stat"><view class="stat-number">{{seatsCount}}<text> 桌</text></view><view class="stat-label">已设圆桌</view></view>
+      <view class="seating-stat"><view class="stat-number">{{assignedCount}}<text> 人</text></view><view class="stat-label">已安排入座</view></view>
+      <view class="seating-stat"><view class="stat-number">{{waitingCount}}<text> 人</text></view><view class="stat-label">等待安排</view></view>
+    </view>
+    <view class="capacity-caption">共 {{totalCapacity}} 个座位 · 待回复亲友可先预留座位</view>
+
+    <view class="card waiting-card">
+      <view class="waiting-header"><view class="section-title">待安排亲友</view><button class="text-action" bindtap="goGuests">管理名单 →</button></view>
+      <view wx:if="waitingCount" class="waiting-search"><input placeholder="搜索待排桌的亲友" value="{{query}}" bindinput="onSearch" maxlength="60" /></view>
+      <view wx:for="{{waiting}}" wx:key="id" class="waiting-guest">
+        <view class="waiting-person"><view class="guest-name">{{item.name}}</view><view class="guest-detail">{{item.partySize}} 人 · {{item.attendance === 'yes' ? '确认出席' : '待回复'}}</view></view>
+        <button class="small-button" data-guest="{{item.id}}" bindtap="openAssignment" disabled="{{saving || !tables.length}}">安排入座</button>
+      </view>
+      <view wx:if="!waiting.length" class="waiting-empty">{{waitingCount ? '没有匹配的亲友，换个名字试试' : assignedCount ? '所有受邀亲友都已安排好座位' : '先添加宾客，再为亲友安排圆桌'}}</view>
+      <view wx:if="waitingCount && !tables.length" class="muted create-tip">先在下方添加一张圆桌，就能开始排座。</view>
+    </view>
+
+    <view class="tables-section-label">圆桌示意<text>点击座位可查看或调整安排</text></view>
+    <view wx:if="!tables.length" class="card empty table-empty">
+      <view class="empty-table-art"><view></view><view></view><view></view><view></view></view>
+      <view>第一桌，从这里开始</view>
+      <view class="muted">10 人桌、12 人桌，或按宴会厅自定义人数</view>
+    </view>
+
+    <view wx:for="{{tables}}" wx:key="id" wx:for-item="table" class="card table-card">
+      <view class="table-card-header">
+        <view><view class="table-name">{{table.name}}</view><view class="table-capacity">{{table.capacity}} 人圆桌</view></view>
+        <view class="occupancy-badge {{table.full ? 'is-full' : ''}}">{{table.full ? '已满员' : '还可坐 ' + table.available + ' 人'}}</view>
+      </view>
+      <view class="round-table-canvas">
+        <view class="table-outline"></view>
+        <view class="table-surface">
+          <view class="table-decoration">喜</view>
+          <view class="table-center-name">{{table.name}}</view>
+          <view class="table-center-count">{{table.count}}<text> / {{table.capacity}} 人</text></view>
+          <view class="table-center-flower">· ❀ ·</view>
+        </view>
+        <view wx:for="{{table.seats}}" wx:key="index" wx:for-item="seat" class="chair {{seat.filled ? 'chair-filled' : 'chair-empty'}} color-{{seat.color}}" style="{{seat.style}}" data-guest="{{seat.guestId}}" data-table="{{table.id}}" bindtap="openAssignment" aria-label="{{seat.fullLabel}}">{{seat.label}}</view>
+      </view>
+      <view class="table-legend"><view class="legend-dot legend-filled"></view><text>已安排</text><view class="legend-dot legend-empty"></view><text>空位</text><text class="legend-family">同色代表同组亲友</text></view>
+      <view wx:for="{{table.guests}}" wx:key="id" wx:for-item="guest" class="seated-guest">
+        <view class="family-dot color-{{guest.color}}"></view>
+        <view class="seated-guest-info"><view class="guest-name">{{guest.name}}<text class="party-number">{{guest.partySize}} 人</text></view><view wx:if="guest.attendance === 'pending'" class="guest-detail">待回复 · 已预留座位</view></view>
+        <button class="mini-action" data-guest="{{guest.id}}" bindtap="openAssignment" disabled="{{saving}}">换桌</button>
+        <button class="mini-action muted-action" data-id="{{guest.id}}" bindtap="unseat" disabled="{{saving}}">移出</button>
+      </view>
+      <view wx:if="!table.guests.length" class="table-no-guests">座位都准备好了，安排亲友入座吧。</view>
+      <view class="table-actions">
+        <button class="small-button assign-button" data-table="{{table.id}}" bindtap="openAssignment" disabled="{{saving || table.full}}">＋ 安排亲友</button>
+        <view class="action-spacer"></view>
+        <button class="mini-action" data-id="{{table.id}}" bindtap="openTable" disabled="{{saving}}">编辑</button>
+        <button class="mini-action muted-action" data-id="{{table.id}}" bindtap="deleteTable" disabled="{{saving}}">删除</button>
+      </view>
+    </view>
+    <view class="bottom-action"><button class="button-primary" bindtap="openTable" disabled="{{saving || loading}}">＋ 添加圆桌</button></view>
+  </block>
+</view>
+
+<view wx:if="tableEditor" class="modal-mask" catchtap="closeTable" catchtouchmove="stopTap">
+  <view class="modal-sheet" catchtap="stopTap">
+    <view class="modal-heading"><view class="modal-title">{{tableId ? '编辑圆桌' : '添加圆桌'}}</view><button class="close-modal" bindtap="closeTable" disabled="{{saving}}">×</button></view>
+    <view class="field"><view class="label">桌名</view><input class="input" value="{{tableName}}" placeholder="例如：主桌、亲友桌" maxlength="40" bindinput="editTableName" disabled="{{saving}}" /></view>
+    <view class="field">
+      <view class="label">每桌人数</view>
+      <view class="capacity-options">
+        <button class="capacity-option {{capacityMode === '10' ? 'capacity-selected' : ''}}" data-value="10" bindtap="setCapacity" disabled="{{saving}}"><text>10</text>人桌</button>
+        <button class="capacity-option {{capacityMode === '12' ? 'capacity-selected' : ''}}" data-value="12" bindtap="setCapacity" disabled="{{saving}}"><text>12</text>人桌</button>
+        <button class="capacity-option {{capacityMode === 'custom' ? 'capacity-selected' : ''}}" data-value="custom" bindtap="setCapacity" disabled="{{saving}}"><text>＋</text>自定义</button>
+      </view>
+      <input wx:if="capacityMode === 'custom'" class="input custom-capacity" type="number" value="{{customCapacity}}" placeholder="输入 1 至 30 人" maxlength="2" bindinput="editCustomCapacity" disabled="{{saving}}" />
+    </view>
+    <view class="form-note">按宴会厅实际桌型设置人数，系统会检查是否超员。</view>
+    <view wx:if="tableError" class="form-error">{{tableError}}</view>
+    <button wx:if="tableConflict" class="button-secondary reload-button" data-kind="table" bindtap="reloadDraft" disabled="{{saving}}">重新载入最新记录</button>
+    <view class="modal-actions"><button class="button-secondary cancel-button" bindtap="closeTable" disabled="{{saving}}">取消</button><button class="button-primary confirm-button" bindtap="saveTable" loading="{{saving}}" disabled="{{saving || tableConflict}}">保存圆桌</button></view>
+  </view>
+</view>
+
+<view wx:if="assignmentOpen" class="modal-mask" catchtap="closeAssignment" catchtouchmove="stopTap">
+  <view class="modal-sheet" catchtap="stopTap">
+    <view class="modal-heading"><view class="modal-title">安排亲友入座</view><button class="close-modal" bindtap="closeAssignment" disabled="{{saving}}">×</button></view>
+    <view class="field"><view class="label">宾客 / 家庭</view><picker range="{{guestOptions}}" range-key="label" value="{{guestIndex}}" bindchange="selectGuest" disabled="{{saving}}"><view class="input picker-input">{{guestOptions[guestIndex].label}}<text>⌄</text></view></picker></view>
+    <view class="field"><view class="label">安排到哪一桌</view><picker range="{{tableOptions}}" range-key="label" value="{{tableIndex}}" bindchange="selectTable" disabled="{{saving}}"><view class="input picker-input">{{tableOptions[tableIndex].label}}<text>⌄</text></view></picker></view>
+    <view class="assignment-note {{canAssign ? 'assignment-ready' : ''}}">{{assignmentHint}}</view>
+    <view wx:if="assignmentError" class="form-error">{{assignmentError}}</view>
+    <button wx:if="assignmentConflict" class="button-secondary reload-button" data-kind="assignment" bindtap="reloadDraft" disabled="{{saving}}">重新载入最新记录</button>
+    <view class="modal-actions"><button class="button-secondary cancel-button" bindtap="closeAssignment" disabled="{{saving}}">取消</button><button class="button-primary confirm-button" bindtap="assign" loading="{{saving}}" disabled="{{saving || !canAssign || assignmentConflict}}">确认入座</button></view>
+  </view>
+</view>

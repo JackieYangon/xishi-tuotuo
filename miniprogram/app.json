@@ -1,0 +1,9 @@
+{
+  "pages": ["pages/home/index", "pages/group/index", "pages/manage/index", "pages/seating/index", "pages/invitation/index", "pages/export/index"],
+  "window": { "navigationBarTitleText": "喜事妥妥", "navigationBarBackgroundColor": "#faf7f2", "navigationBarTextStyle": "black", "backgroundColor": "#faf7f2", "backgroundTextStyle": "dark" },
+  "style": "v2",
+  "permission": { "scope.userLocation": { "desc": "用于选择婚礼场地，方便亲友导航赴宴" } },
+  "requiredPrivateInfos": ["chooseLocation"],
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

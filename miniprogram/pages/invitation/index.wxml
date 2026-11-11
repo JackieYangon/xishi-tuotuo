@@ -1,0 +1,18 @@
+<view wx:if="loading" class="container empty">正在打开这份邀请…</view>
+<view wx:elif="error" class="container"><view class="card empty"><view class="title">请柬暂时未能打开</view><view>{{error}}</view><button class="button-primary retry" bindtap="load">重试</button></view></view>
+<view wx:elif="invitation" class="invitation theme-{{invitation.profile.theme || 'rose'}}">
+  <view wx:if="manage" class="manage-banner">这是 {{invitation.guest.name}} 的专属请柬，请单独发送给本人或该家庭。<button class="button-primary" open-type="share">发送这份邀请</button></view>
+  <view wx:if="preview" class="manage-banner">请柬样式预览<button class="button-text" bindtap="guests">前往宾客名单，生成专属邀请 ›</button></view>
+  <button wx:if="invitation.musicUrl" class="music-button" bindtap="toggleMusic">{{playing ? '♫ 暂停' : '♫ 音乐'}}</button>
+  <view class="invitation-top"><text class="english">WE ARE GETTING MARRIED</text><view class="seal">囍</view><view class="invitation-names">{{invitation.profile.bride || '新娘'}}<text> &amp; </text>{{invitation.profile.groom || '新郎'}}</view><view class="date">{{invitation.profile.date || '婚期待定'}}</view><view class="thin-line"></view><view class="invitation-title">诚 · 邀 · 赴 · 宴</view></view>
+  <image wx:if="invitation.coverUrl" src="{{invitation.coverUrl}}" mode="widthFix" class="wedding-photo"/>
+  <view wx:else class="photo-placeholder"><view class="rings"><view></view><view></view></view><text>良辰与共，喜乐相逢</text></view>
+  <view class="letter"><view wx:if="invitation.guest" class="dear">亲爱的 {{invitation.guest.name}}：</view><text class="invitation-text">{{invitation.profile.invitationText || '诚邀您见证我们的幸福时刻，期待与您相聚。'}}</text><view class="venue">{{invitation.profile.venue || '婚礼场地待定'}}</view><view class="address">{{invitation.profile.address}}</view><button wx:if="invitation.profile.venue || invitation.profile.address" class="map-button" bindtap="navigate">{{hasLocation ? '查看地图 · 导航赴宴' : '复制婚礼地址'}} ↗</button><view wx:if="invitation.tableName" class="seat-info">为您安排：{{invitation.tableName}}</view></view>
+  <view wx:if="invitation.guest && !manage" class="rsvp card">
+    <view class="section-title">{{submitted ? '我们收到您的回复啦' : '期待与您相见'}}</view><view class="muted">{{submitted ? '安排有变化时，可以在这里修改。' : '请告诉我们您的安排，方便提前准备。'}}</view>
+    <radio-group bindchange="attendanceChange" class="attendance"><label><radio value="yes" checked="{{attendance === 'yes'}}" color="#954b50"/>欣然赴约</label><label><radio value="no" checked="{{attendance === 'no'}}" color="#954b50"/>遗憾缺席</label></radio-group>
+    <block wx:if="attendance === 'yes'"><view class="field"><text class="label">共几位出席（包含您自己）</text><input class="input" type="number" maxlength="2" value="{{partySize}}" data-key="partySize" bindinput="input"/></view><view class="between field"><text>需要安排住宿</text><switch checked="{{needsLodging}}" color="#954b50" bindchange="lodgingChange"/></view></block>
+    <view class="field"><text class="label">给新人的留言 / 饮食需求（500 字以内）</text><textarea class="input" value="{{note}}" data-key="note" bindinput="input" maxlength="500" placeholder="有需要提前安排的事情，可以告诉我们"/></view><view wx:if="invitation.warning" class="notice">{{invitation.warning}}</view><button class="button-primary" loading="{{busy}}" disabled="{{busy}}" bindtap="submit">{{submitted ? '更新出席回复' : '送出我的回复'}}</button>
+  </view>
+  <view class="invitation-footer">愿每一份相聚，都成为温柔的回忆。<view>喜事妥妥 · 用心准备，安心相聚</view></view>
+</view>
