@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const COLLECTION = 'xishi_tuotuo_groups';
 const STORAGE_PREFIX = 'xishi-tuotuo/';
 const TYPES = ['tasks', 'items', 'vendors', 'guests', 'tables', 'timeline', 'lodgings'];
+const MEMBER_ROLES = ['新娘', '新郎', '妈妈', '爸爸', '家人', '伴郎伴娘'];
 const DAY = 86400000;
 const MAX_DOCUMENT_BYTES = 700 * 1024;
 const MAX_RECORDS = { tasks: 300, items: 300, vendors: 100, guests: 500, tables: 100, timeline: 150, lodgings: 150 };
@@ -68,6 +69,7 @@ function privateGroup(group, userId) {
   delete result.memberIds;
   delete result.media;
   result.selfId = userId;
+  result.members = result.members.map(entry => ({ ...entry, accountLabel: hash(group.id + ':' + entry.id).slice(0, 8).toUpperCase() }));
   return result;
 }
 function profile(input, existing, media) {
@@ -149,6 +151,18 @@ function defaultTasks(now, weddingDate, randomId) {
 
 function createService({ repo, storage, allowedAppId, now = () => Date.now(), random = bytes => crypto.randomBytes(bytes).toString('hex') }) {
   const randomId = () => random(12);
+  async function cleanupAvatar(groupId, file) {
+    if (!file || !storage) return;
+    const prefix = `${STORAGE_PREFIX}${groupId}/`;
+    if (file.kind !== 'avatar' || !file.cloudPath?.startsWith(prefix) || file.cloudPath.slice(prefix.length).includes('/') || !file.fileID?.startsWith('cloud://') || !file.fileID.endsWith('/' + file.cloudPath)) return;
+    try {
+      await storage.remove(file.fileID);
+      await repo.transact(groupId, async current => {
+        current.media = current.media.filter(entry => entry.fileID !== file.fileID);
+        return { group: current, result: null };
+      });
+    } catch (_) { /* Keep registered media for group-deletion cleanup if storage is unavailable. */ }
+  }
   async function mutate(payload, userId, change, ownerOnly = false) {
     const groupId = id(payload.groupId, '群组标识');
     return repo.transact(groupId, async group => {
@@ -265,21 +279,80 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
       } else if (event.action === 'groups.get' || event.action === 'media.urls') {
         const group = await repo.get(id(payload.groupId, '群组标识'));
         member(group, userId);
-        data = event.action === 'groups.get' ? { group: privateGroup(group, userId) } : { urls: storage ? await storage.urls(group.media.map(entry => entry.fileID)) : {} };
+        const visibleFiles = [group.profile.coverFileID, group.profile.musicFileID, ...group.members.map(entry => entry.avatarFileID)];
+        const fileIDs = [...new Set(visibleFiles.filter(fileID => fileID && group.media.some(file => file.fileID === fileID)))];
+        data = event.action === 'groups.get' ? { group: privateGroup(group, userId) } : { urls: storage ? await storage.urls(fileIDs) : {} };
+      } else if (event.action === 'members.login') {
+        data = await mutate(payload, userId, group => {
+          group.members.find(entry => entry.id === userId).profileLoginAt = now();
+        });
+      } else if (event.action === 'members.update') {
+        const groupId = id(payload.groupId, '群组标识');
+        const before = await repo.get(groupId);
+        member(before, userId); revision(before, payload.revision);
+        const targetId = text(payload.memberId, '成员标识', 128, true);
+        if (targetId !== userId && before.ownerId !== userId) fail('FORBIDDEN', '只能修改自己的资料');
+        if (!before.members.some(entry => entry.id === targetId)) fail('NOT_FOUND', '成员已不在群组中');
+        const nickname = text(payload.nickname, '群内称呼', 30, true);
+        const role = choice(payload.role, MEMBER_ROLES, '家人', '身份');
+        let uploaded;
+        if (payload.avatarBase64 !== undefined) {
+          if (targetId !== userId) fail('FORBIDDEN', '只能由本人设置头像');
+          if (!storage) fail('UNAVAILABLE', '头像服务暂不可用');
+          if (before.media.filter(file => file.kind === 'avatar' && file.uploaderId === userId).length >= 5) fail('LIMIT_REACHED', '待清理的头像较多，请稍后重试');
+          if (typeof payload.avatarBase64 !== 'string' || payload.avatarBase64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.avatarBase64)) fail('INVALID_INPUT', '头像必须是 2MB 以内的 JPG 或 PNG');
+          const bytes = Buffer.from(payload.avatarBase64, 'base64');
+          const png = bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+          const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+          if (bytes.length > 2 * 1024 * 1024 || !(png || jpeg)) fail('INVALID_INPUT', '头像必须是 2MB 以内的 JPG 或 PNG');
+          const cloudPath = `${STORAGE_PREFIX}${groupId}/${randomId()}.${png ? 'png' : 'jpg'}`;
+          uploaded = { fileID: await storage.upload(cloudPath, bytes), cloudPath, kind: 'avatar', uploaderId: userId };
+        }
+        let oldAvatar;
+        try {
+          data = await mutate(payload, userId, group => {
+            if (targetId !== userId && group.ownerId !== userId) fail('FORBIDDEN', '只能修改自己的资料');
+            const target = group.members.find(entry => entry.id === targetId);
+            if (!target) fail('NOT_FOUND', '成员已不在群组中');
+            target.nickname = nickname; target.role = role;
+            if (uploaded) {
+              oldAvatar = group.media.find(file => file.fileID === target.avatarFileID);
+              target.avatarFileID = uploaded.fileID;
+              group.media.push(uploaded);
+            }
+          });
+        } catch (error) {
+          if (uploaded) {
+            try { await storage.remove(uploaded.fileID); }
+            catch (_) {
+              await repo.transact(groupId, async current => {
+                current.media.push(uploaded);
+                if (current.status) { current.status = 'deleting'; current.memberIds = [current.ownerId]; }
+                return { group: current, result: null };
+              });
+            }
+          }
+          throw error;
+        }
+        await cleanupAvatar(groupId, oldAvatar);
       } else if (event.action === 'groups.profile') {
         data = await mutate(payload, userId, group => { group.profile = profile(payload.profile, group.profile, group.media); });
       } else if (event.action === 'groups.rotateCode') {
         data = await mutate(payload, userId, group => { group.joinCode = random(6).toUpperCase(); group.joinCodeExpiresAt = now() + 7 * DAY; }, true);
       } else if (event.action === 'groups.removeMember') {
+        let removedAvatar;
         data = await mutate(payload, userId, group => {
           const memberId = text(payload.memberId, '成员标识', 128, true);
           if (memberId === group.ownerId) fail('INVALID_INPUT', '不能移除群主');
           if (!group.members.some(entry => entry.id === memberId)) fail('NOT_FOUND', '成员已不在群组中');
+          const avatarFileID = group.members.find(entry => entry.id === memberId).avatarFileID;
+          removedAvatar = group.media.find(file => file.fileID === avatarFileID);
           group.members = group.members.filter(entry => entry.id !== memberId);
           ['tasks', 'items', 'timeline'].forEach(type => group[type].forEach(entry => { if (entry.assigneeId === memberId) entry.assigneeId = ''; }));
           group.joinCode = random(6).toUpperCase();
           group.joinCodeExpiresAt = now() + 7 * DAY;
         }, true);
+        await cleanupAvatar(data.group.id, removedAvatar);
       } else if (event.action === 'records.save') {
         data = await mutate(payload, userId, group => {
           const type = choice(payload.type, TYPES, '', '记录类型');
@@ -355,7 +428,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         member(group, userId);
         revision(group, payload.revision);
         if (!storage) fail('UNAVAILABLE', '文件服务暂不可用');
-        if (group.media.length >= 30) fail('LIMIT_REACHED', '本群组最多上传 30 个请柬媒体文件');
+        if (group.media.filter(file => file.kind !== 'avatar').length >= 30) fail('LIMIT_REACHED', '本群组最多上传 30 个请柬媒体文件');
         const kind = choice(payload.kind, ['image', 'audio'], '', '媒体类型');
         if (typeof payload.base64 !== 'string' || payload.base64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.base64)) fail('INVALID_INPUT', '文件格式无效或超过 2 MB');
         const bytes = Buffer.from(payload.base64, 'base64');

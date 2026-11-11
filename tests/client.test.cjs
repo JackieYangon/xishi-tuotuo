@@ -44,6 +44,33 @@ function group(revision, changes = {}) {
 }
 const input = (key, value) => ({ currentTarget: { dataset: { key } }, detail: { value } });
 
+test('existing members can dismiss optional login and later open their own profile', async () => {
+  const saved = [];
+  const current = group(1);
+  const { page } = pageHarness('src/pages/group/index.vue', {
+    async loginMember(revision) { assert.equal(revision, 1); return { group: { ...current, revision: 2, members: [{ ...current.members[0], profileLoginAt: 123 }] } }; }
+  }, { setStorageSync: (...args) => saved.push(args), getStorageSync: () => false });
+  page.applyGroup(current);
+  assert.equal(page.state.showLoginPrompt, true);
+  page.skipLogin();
+  assert.equal(page.state.showLoginPrompt, false); assert.equal(page.state.group.id, current.id); assert.equal(saved.length, 1);
+  await page.loginAndEdit();
+  assert.equal(page.state.memberOpen, true); assert.equal(page.state.memberId, 'owner');
+  assert.equal(page.state.showLoginPrompt, false);
+});
+
+test('member drafts retain their original revision and are blocked after a conflict', async () => {
+  let requests = 0;
+  const { page } = pageHarness('src/pages/group/index.vue', { async saveMember(id, nickname, role, avatar, revision) {
+    requests++; assert.equal(revision, 1); throw Object.assign(new Error('Conflict'), { code: 'CONFLICT' });
+  } });
+  page.applyGroup(group(1)); page.openMember(); page.state.memberNickname = '我的草稿';
+  page.applyGroup(group(2));
+  await page.saveMember(); await page.saveMember();
+  assert.equal(page.state.memberNickname, '我的草稿'); assert.equal(page.state.memberOpen, true);
+  assert.equal(page.state.memberConflict, true); assert.equal(requests, 1);
+});
+
 test('group deletion clears only its own cached selection and supports cleanup retries', async () => {
   const { service, pending } = serviceHarness();
   service.setGroup(group(1));

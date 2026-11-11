@@ -13,7 +13,22 @@
       <view class="notice">加入群组后，成员可以共同查看和编辑婚礼资料、宾客名单与筹备事项。</view><button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="createOrJoin">{{ state.joinMode ? '加入，一起筹备' : '创建我们的婚礼' }}</button>
     </view>
     <template v-if="state.group && !state.joinMode">
-      <view class="card"><view class="between"><view class="section-title">筹备家人 · {{ state.group.members.length }} 人</view><text class="chip">共同编辑</text></view><view v-for="(item, index) in state.group.members" :key="item.id" class="between member"><view><text class="member-name">{{ item.nickname }}</text><text class="pill">{{ item.role }}</text><text v-if="item.id === state.group.ownerId" class="muted"> · 群主</text></view><button v-if="state.isOwner && item.id !== state.group.selfId" class="button-text danger" :data-id="(item.id)" @tap="removeMember" :disabled="(state.busy)">移除</button></view><view class="divider"></view><view class="muted">邀请码 · {{ state.codeExpired ? '已过期，请群主更新' : '有效至 ' + state.expires }}</view><view class="invite-code">{{ state.group.joinCode }}</view><view class="actions"><button class="button-secondary" @tap="copyCode">复制邀请码</button><button class="button-primary" open-type="share" :disabled="(state.codeExpired)">邀请家人</button></view><button v-if="state.isOwner" class="button-text small" @tap="rotateCode" :disabled="(state.busy)">更新邀请码</button></view>
+      <view class="card">
+        <view class="between"><view class="section-title">筹备家人 · {{ state.group.members.length }} 人</view><text class="chip">共同编辑</text></view>
+        <view v-if="state.showLoginPrompt" class="notice login-prompt">
+          <view>要不要微信登录，完善一下头像和称呼？</view><view class="muted small">可以跳过，不影响一起筹备婚礼。</view>
+          <view class="actions"><button class="button-secondary" :disabled="state.busy" @tap="skipLogin">暂不登录</button><button class="button-primary login-button" :disabled="state.busy" @tap="loginAndEdit">微信登录并完善资料</button></view>
+        </view>
+        <view v-for="item in state.group.members" :key="item.id" class="member member-row">
+          <image v-if="item.avatarFileID && state.avatarUrls && state.avatarUrls[item.avatarFileID]" class="member-avatar" :src="state.avatarUrls[item.avatarFileID]" :data-file="item.avatarFileID" @error="avatarError" mode="aspectFill" />
+          <view v-else class="member-avatar avatar-placeholder">{{ item.nickname.slice(0, 1) || '家' }}</view>
+          <view class="member-info"><view><text class="member-name">{{ item.nickname }}</text><text class="pill">{{ item.role }}</text></view><view class="muted small"><text v-if="item.id === state.group.ownerId">群主 · </text><text v-if="item.id === state.group.selfId">我 · </text>账号标记 {{ item.accountLabel }}</view></view>
+          <view class="member-actions"><button v-if="state.isOwner || item.id === state.group.selfId" class="button-text member-edit" :data-id="item.id" :disabled="state.busy" @tap="openMember">修改</button><button v-if="state.isOwner && item.id !== state.group.selfId" class="button-text danger" :data-id="item.id" @tap="removeMember" :disabled="state.busy">移除</button></view>
+        </view>
+        <button v-if="!state.showLoginPrompt" class="button-text login-button" :disabled="state.busy" @tap="loginAndEdit">微信登录 / 完善我的资料</button>
+        <view class="muted small">头像和称呼由成员填写，仅供辨认，不代表实名验证。请将邀请码只发给认识的家人；账号标记可区分同名成员。</view>
+        <view class="divider"></view><view class="muted">邀请码 · {{ state.codeExpired ? '已过期，请群主更新' : '有效至 ' + state.expires }}</view><view class="invite-code">{{ state.group.joinCode }}</view><view class="actions"><button class="button-secondary" @tap="copyCode">复制邀请码</button><button class="button-primary" open-type="share" :disabled="state.codeExpired">邀请家人</button></view><button v-if="state.isOwner" class="button-text small" @tap="rotateCode" :disabled="state.busy">更新邀请码</button>
+      </view>
       <view class="card"><view class="section-title">我们的婚礼</view><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60"/></view><view class="couple-fields"><view class="field"><text class="label">新娘</text><input class="input" :value="(state.profile.bride)" data-key="bride" @input="profileInput" maxlength="30" placeholder="新娘姓名"/></view><view class="field"><text class="label">新郎</text><input class="input" :value="(state.profile.groom)" data-key="groom" @input="profileInput" maxlength="30" placeholder="新郎姓名"/></view></view><view class="field"><text class="label">婚礼日期</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择日期' }} ▾</view></picker></view><view class="field"><text class="label">场地名称</text><input class="input" :value="(state.profile.venue)" data-key="venue" @input="profileInput" maxlength="100" placeholder="酒店或婚礼场地"/></view><view class="field"><text class="label">详细地址</text><input class="input" :value="(state.profile.address)" data-key="address" @input="profileInput" maxlength="200" placeholder="亲友可按这个地址前往"/></view><view class="row"><button class="button-secondary" @tap="chooseLocation">{{ state.profile.latitude !== null ? '重新选择地图位置' : '添加地图导航' }}</button><button v-if="state.profile.latitude !== null" class="button-text" @tap="clearLocation">移除定位</button></view><view class="notice" v-if="state.profile.latitude !== null">地图位置已选好，保存后亲友可在请柬中一键导航。</view></view>
       <view class="card"><view class="section-title">电子请柬样式</view><image v-if="state.coverUrl" class="cover" :src="(state.coverUrl)" mode="aspectFill"/><button class="button-secondary" @tap="pickImage" :disabled="(state.busy)">{{ state.profile.coverFileID ? '更换合照' : '添加一张合照' }}</button><view class="muted small">JPG / PNG，2MB 以内</view><view class="field"><text class="label">请柬主题</text><picker :range="(state.themes)" :value="(state.themeIndex)" @change="themeChange"><view class="input">{{ state.themes[state.themeIndex] }} ▾</view></picker></view><view class="field"><text class="label">想对亲友说的话</text><textarea class="input" :value="(state.profile.invitationText)" data-key="invitationText" @input="profileInput" maxlength="2000"/></view><view class="row"><button class="button-secondary" @tap="pickMusic" :disabled="(state.busy)">{{ state.profile.musicFileID ? '更换背景音乐' : '添加背景音乐' }}</button><button v-if="state.profile.musicFileID" class="button-text" @tap="clearMusic">移除</button></view><view class="muted small">从微信文件选择 MP3，2MB 以内</view></view>
       <button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="saveProfile">保存婚礼资料与请柬</button><button class="button-text" @tap="home">返回婚礼首页</button>
@@ -29,6 +44,20 @@
     <view class="field"><text class="label">输入婚礼名称：{{ state.group.profile.title }}</text><input class="input delete-confirm-input" :value="state.deleteTitle" @input="deleteTitleInput" :disabled="state.busy" placeholder="完整输入名称以确认" /></view>
     <view v-if="state.deleteError" class="error">{{ state.deleteError }}</view>
     <view class="actions"><button class="button-secondary" :disabled="state.busy" @tap="state.deleteOpen = false">取消</button><button class="button-primary delete-submit" :loading="state.busy" :disabled="state.busy || state.deleteTitle !== state.group.profile.title" @tap="deleteWedding">确认永久删除</button></view>
+  </view>
+</view>
+
+<view v-if="state.memberOpen && state.group" class="delete-mask member-mask">
+  <view class="card delete-dialog">
+    <view class="section-title">{{ state.memberId === state.group.selfId ? '我的群内资料' : '修改家人的群内称呼' }}</view>
+    <button v-if="state.memberId === state.group.selfId" class="avatar-picker" open-type="chooseAvatar" @chooseavatar="chooseAvatar" :disabled="state.busy">
+      <image v-if="state.memberAvatar" class="member-avatar avatar-large" :src="state.memberAvatar" mode="aspectFill" /><view v-else class="member-avatar avatar-large avatar-placeholder">{{ state.memberNickname.slice(0, 1) || '我' }}</view><text>选择微信头像</text>
+    </button>
+    <view v-else class="muted small">头像只能由本人设置。修改称呼或身份不会更换微信账号，也不会改变群主权限。</view>
+    <view class="field"><text class="label">群内称呼</text><input :type="state.memberId === state.group.selfId ? 'nickname' : 'text'" class="input member-nickname" :value="state.memberNickname" @input="memberNicknameInput" @blur="memberNicknameInput" :disabled="state.busy" maxlength="30" placeholder="填写家人熟悉的称呼" /></view>
+    <view class="field"><text class="label">在婚礼中的身份</text><picker class="member-role" :range="state.roles" :value="Math.max(0, state.roles.indexOf(state.memberRole))" @change="memberRoleChange" :disabled="state.busy"><view class="input">{{ state.memberRole }} ▾</view></picker></view>
+    <view v-if="state.memberError" class="error">{{ state.memberError }}</view>
+    <view class="actions"><button class="button-secondary" :disabled="state.busy" @tap="closeMember">取消</button><button class="button-primary member-save" :disabled="state.busy || state.memberConflict" :loading="state.busy" @tap="saveMember">保存资料</button></view>
   </view>
 </view>
 
@@ -52,6 +81,60 @@ onShareAppMessage() {
     return { title: '邀请你一起筹备：' + this.state.group.profile.title, path: '/pages/group/index?code=' + this.state.group.joinCode };
 },
  methods: {
+openMember(event) {
+    if (this.state.busy) return;
+    const memberId = event?.currentTarget?.dataset?.id || this.state.group.selfId;
+    const target = this.state.group.members.find(entry => entry.id === memberId);
+    if (!target || (memberId !== this.state.group.selfId && !this.state.isOwner)) return;
+    this.runtime._memberRevision = this.state.group.revision;
+    updateState(this.state, { memberOpen: true, memberId, memberNickname: target.nickname, memberRole: target.role,
+      memberAvatar: this.state.avatarUrls?.[target.avatarFileID] || '', memberAvatarPath: '', memberError: '', memberConflict: false });
+},
+closeMember() { if (!this.state.busy) this.state.memberOpen = false; },
+memberNicknameInput(event) { this.state.memberNickname = event.detail.value; },
+memberRoleChange(event) { this.state.memberRole = this.state.roles[Number(event.detail.value)]; },
+chooseAvatar(event) {
+    if (this.state.busy || this.state.memberId !== this.state.group.selfId) return;
+    const avatarUrl = event.detail.avatarUrl;
+    if (!avatarUrl) return;
+    updateState(this.state, { memberAvatarPath: avatarUrl, memberAvatar: avatarUrl, memberError: '' });
+},
+avatarError(event) {
+    const fileID = event.currentTarget.dataset.file;
+    if (fileID && this.state.avatarUrls) this.state.avatarUrls[fileID] = '';
+},
+skipLogin() {
+    this.state.showLoginPrompt = false;
+    wx.setStorageSync('xishi-tuotuo:profile-prompt:' + this.state.group.id, true);
+},
+async loginAndEdit() {
+    if (this.state.busy) return;
+    this.state.busy = true;
+    try {
+        const data = await service.loginMember(this.state.group.revision);
+        this.applyGroup(data.group);
+        this.state.showLoginPrompt = false;
+        this.state.busy = false;
+        this.openMember();
+    } catch (error) { service.showError(error); }
+    finally { this.state.busy = false; }
+},
+async saveMember() {
+    if (this.state.busy || this.state.memberConflict) return;
+    if (!this.state.memberNickname.trim()) { this.state.memberError = '请填写群内称呼'; return; }
+    this.state.busy = true;
+    try {
+        const data = await service.saveMember(this.state.memberId, this.state.memberNickname.trim(), this.state.memberRole, this.state.memberAvatarPath, this.runtime._memberRevision);
+        this.applyGroup(data.group);
+        this.state.memberOpen = false;
+        this.state.memberAvatarPath = '';
+        await this.mediaUrls();
+        wx.showToast({ title: '成员资料已保存', icon: 'success' });
+    } catch (error) {
+        this.state.memberConflict = error.code === 'CONFLICT';
+        this.state.memberError = error.code === 'CONFLICT' ? '家人更新了群组，当前修改已保留。请取消后刷新，再重新编辑。' : error.message || '资料未保存，请重试';
+    } finally { this.state.busy = false; }
+},
 deleteTitleInput(event: Event | WechatMiniprogram.Input) { this.state.deleteTitle = (event as WechatMiniprogram.Input).detail.value; },
 openDelete() {
     if (this.state.busy || !this.state.isOwner) return;
@@ -72,7 +155,7 @@ async deleteWedding() {
 },
 clearDeletedGroup() {
     this.runtime = {};
-    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, deleteOpen: false, deleteTitle: '', deleteError: '', code: '', error: '', joinMode: false });
+    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, deleteOpen: false, memberOpen: false, avatarUrls: {}, deleteTitle: '', deleteError: '', code: '', error: '', joinMode: false });
 },
 async retryDeletion(event) {
     if (this.state.busy) return;
@@ -100,7 +183,7 @@ async load() {
                     this.runtime._dirty = false;
                     this.runtime._profileBase = null;
                     this.runtime._profileRevision = undefined;
-                    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, deleteOpen: false, deleteTitle: '', error: '群组已删除或你已无法访问，可以选择其他婚礼。' });
+                    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, memberOpen: false, avatarUrls: {}, deleteOpen: false, deleteTitle: '', error: '群组已删除或你已无法访问，可以选择其他婚礼。' });
                 }
                 else
                     throw error;
@@ -115,7 +198,10 @@ async load() {
     }
 },
 applyGroup(group, resetForm = false) {
+    const selfMember = group.members.find(entry => entry.id === group.selfId);
+    const dismissed = typeof wx.getStorageSync === 'function' && wx.getStorageSync('xishi-tuotuo:profile-prompt:' + group.id);
     const patch: Record<string, any> = { group, isOwner: group.ownerId === group.selfId,
+        selfMember, showLoginPrompt: !selfMember?.profileLoginAt && !dismissed,
         expires: new Date(group.joinCodeExpiresAt).toLocaleDateString(), codeExpired: group.joinCodeExpiresAt < Date.now() };
     if (!this.runtime._dirty || resetForm) {
         this.runtime._profileRevision = group.revision;
@@ -127,16 +213,16 @@ applyGroup(group, resetForm = false) {
     updateState(this.state, patch);
 },
 async mediaUrls() {
-    if (!this.state.group || !this.state.group.profile.coverFileID) {
-        updateState(this.state, { coverUrl: '' });
+    if (!this.state.group) {
+        updateState(this.state, { coverUrl: '', avatarUrls: {} });
         return;
     }
     try {
         const data = await service.call('media.urls', { groupId: this.state.group.id });
-        updateState(this.state, { coverUrl: data.urls[this.state.group.profile.coverFileID] || '' });
+        updateState(this.state, { coverUrl: data.urls[this.state.group.profile.coverFileID] || '', avatarUrls: data.urls });
     }
     catch (_) {
-        updateState(this.state, { coverUrl: '' });
+        updateState(this.state, { coverUrl: '', avatarUrls: {} });
     }
 },
 input(event) { updateState(this.state, { [event.currentTarget.dataset.key]: event.detail.value }); },
@@ -310,6 +396,17 @@ home() { wx.reLaunch({ url: '/pages/home/index' }); }
 </script>
 
 <style>
+.member-row { display: flex; gap: 18rpx; padding: 20rpx 0; align-items: center; }
+.member-avatar { width: 80rpx; height: 80rpx; border-radius: 50%; flex-shrink: 0; }
+.avatar-placeholder { display: flex; align-items: center; justify-content: center; background: #efe1d8; color: #954b50; font-weight: 600; }
+.member-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.member-actions { flex-shrink: 0; }
+.member-actions button { padding: 8rpx; }
+.avatar-picker { background: transparent; display: flex; flex-direction: column; align-items: center; gap: 12rpx; margin-top: 20rpx; color: #954b50; }
+.avatar-large { width: 128rpx; height: 128rpx; }
+.login-prompt .actions { flex-wrap: wrap; }
+.login-prompt button { font-size: 24rpx; }
+
 .delete-section { margin-top: 32rpx; border: 1rpx solid #e4c3c3; }
 .delete-section button { margin-top: 24rpx; }
 .delete-mask { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; padding: 32rpx; background: rgba(40, 28, 28, .48); }

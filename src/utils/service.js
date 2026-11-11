@@ -59,8 +59,17 @@ function confirm(content, title = '请确认') {
   return new Promise(resolve => wx.showModal({ title, content, confirmColor: '#954b50', success: result => resolve(result.confirm), fail: () => resolve(false) }));
 }
 function chooseFile(options) { return new Promise((resolve, reject) => wx.chooseMessageFile({ ...options, success: resolve, fail: reject })); }
+async function loginMember(expectedRevision) {
+  await new Promise((resolve, reject) => wx.login({ success: resolve, fail: reject }));
+  return mutate('members.login', {}, expectedRevision);
+}
+async function saveMember(memberId, nickname, role, avatarPath, expectedRevision) {
+  const payload = { memberId, nickname, role };
+  if (avatarPath) payload.avatarBase64 = await new Promise((resolve, reject) => wx.getFileSystemManager().readFile({ filePath: avatarPath, encoding: 'base64', success: result => resolve(result.data), fail: reject }));
+  return mutate('members.update', payload, expectedRevision);
+}
 async function upload(path, kind, name) {
   const base64 = await new Promise((resolve, reject) => wx.getFileSystemManager().readFile({ filePath: path, encoding: 'base64', success: r => resolve(r.data), fail: reject }));
   return mutate('media.upload', { base64, kind, name });
 }
-export default { call, getGroup, getGroupId, getCachedGroup, setGroup, mutate, deleteGroup, showError, confirm, chooseFile, upload };
+export default { call, getGroup, getGroupId, getCachedGroup, setGroup, mutate, deleteGroup, loginMember, saveMember, showError, confirm, chooseFile, upload };

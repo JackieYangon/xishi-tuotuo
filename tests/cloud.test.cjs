@@ -41,6 +41,71 @@ function setup() {
   return { repo, storage, service, call, ok, create, save, uploads, deletedFiles, advance: ms => { clock += ms; } };
 }
 
+test('optional profile login binds only the caller and does not gate existing members', async () => {
+  const env = setup(); let group = await env.create();
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '家人' }, 'dad')).group;
+  assert.equal(group.members.find(m => m.id === 'dad').profileLoginAt, undefined);
+  assert.ok((await env.ok('groups.get', { groupId: group.id }, 'dad')).group);
+  const logged = await env.ok('members.login', { groupId: group.id, revision: group.revision, memberId: 'owner' }, 'dad');
+  assert.ok(logged.group.members.find(m => m.id === 'dad').profileLoginAt);
+  assert.equal(logged.group.members.find(m => m.id === 'owner').profileLoginAt, undefined);
+});
+
+test('members edit their own identity labels while only the owner may edit other labels', async () => {
+  const env = setup(); let group = await env.create();
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '家人' }, 'dad')).group;
+  const update = { groupId: group.id, revision: group.revision, memberId: 'dad', nickname: '爸爸', role: '爸爸' };
+  assert.equal((await env.call('members.update', { ...update, memberId: 'owner' }, 'dad')).error.code, 'FORBIDDEN');
+  const edited = await env.ok('members.update', update, 'dad');
+  assert.equal(edited.group.members.find(m => m.id === 'dad').nickname, '爸爸');
+  const account = edited.group.members.find(m => m.id === 'dad').accountLabel;
+  const ownerEdit = await env.ok('members.update', { ...update, revision: edited.group.revision, nickname: '新郎爸爸', ownerId: 'dad' });
+  assert.equal(ownerEdit.group.ownerId, 'owner');
+  assert.equal(ownerEdit.group.members.find(m => m.id === 'dad').accountLabel, account);
+  assert.equal((await env.call('members.update', update, 'dad')).error.code, 'CONFLICT');
+  assert.equal((await env.call('members.update', { ...update, revision: ownerEdit.group.revision, role: '群主' }, 'dad')).error.code, 'INVALID_INPUT');
+});
+
+test('avatars are self-owned, replace atomically, and are cleaned with the group', async () => {
+  const env = setup(); let group = await env.create();
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '爸爸' }, 'dad')).group;
+  const update = { groupId: group.id, revision: group.revision, memberId: 'dad', nickname: '爸爸', role: '爸爸', avatarBase64: Buffer.from([255,216,255,1]).toString('base64') };
+  assert.equal((await env.call('members.update', update)).error.code, 'FORBIDDEN');
+  assert.equal(env.uploads.length, 0);
+  const first = await env.ok('members.update', update, 'dad');
+  const firstFile = first.group.members.find(m => m.id === 'dad').avatarFileID;
+  assert.ok(firstFile.startsWith('cloud://test/' + STORAGE_PREFIX + group.id + '/'));
+  const second = await env.ok('members.update', { ...update, revision: first.group.revision, nickname: '新郎爸爸' }, 'dad');
+  const secondFile = second.group.members.find(m => m.id === 'dad').avatarFileID;
+  assert.notEqual(firstFile, secondFile); assert.ok(env.deletedFiles.includes(firstFile));
+  assert.equal((await env.repo.get(group.id)).media.length, 1);
+  assert.equal((await env.call('groups.profile', { groupId: group.id, revision: second.group.revision, profile: { coverFileID: secondFile } })).error.code, 'FORBIDDEN');
+  const deleted = await env.ok('groups.delete', { groupId: group.id, revision: second.group.revision, confirmTitle: group.profile.title });
+  assert.equal(deleted.cleanupPending, false); assert.ok(env.deletedFiles.includes(secondFile));
+});
+
+test('an avatar upload conflict preserves member data and rolls back only the new file', async () => {
+  const env = setup(); const group = await env.create();
+  const upload = env.storage.upload;
+  env.storage.upload = async (...args) => { const fileID = await upload(...args); await env.ok('groups.profile', { groupId: group.id, revision: group.revision, profile: { venue: '家人更新' } }); return fileID; };
+  const outcome = await env.call('members.update', { groupId: group.id, revision: group.revision, memberId: 'owner', nickname: '未保存', role: '新郎', avatarBase64: Buffer.from([255,216,255,1]).toString('base64') });
+  assert.equal(outcome.error.code, 'CONFLICT');
+  const current = await env.repo.get(group.id);
+  assert.equal(current.members[0].nickname, '新人'); assert.equal(current.members[0].avatarFileID, undefined);
+  assert.equal(env.deletedFiles.length, 1);
+});
+
+test('removing a member cleans their avatar and does not expose obsolete media URLs', async () => {
+  const env = setup(); let group = await env.create();
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '爸爸' }, 'dad')).group;
+  group = (await env.ok('members.update', { groupId: group.id, revision: group.revision, memberId: 'dad', nickname: '爸爸', role: '爸爸', avatarBase64: Buffer.from([255,216,255,1]).toString('base64') }, 'dad')).group;
+  const avatar = group.members.find(m => m.id === 'dad').avatarFileID;
+  assert.ok((await env.ok('media.urls', { groupId: group.id })).urls[avatar]);
+  await env.ok('groups.removeMember', { groupId: group.id, revision: group.revision, memberId: 'dad' });
+  assert.ok(env.deletedFiles.includes(avatar));
+  assert.deepEqual((await env.ok('media.urls', { groupId: group.id })).urls, {});
+});
+
 test('only the owner can delete, with a current revision and exact title confirmation', async () => {
   const env = setup(); let group = await env.create();
   group = (await env.ok('groups.join', { code: group.joinCode, nickname: '父亲' }, 'dad')).group;
