@@ -1,7 +1,7 @@
 <h1 align="center">Xishi Tuotuo</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-00866a?style=flat-square" />
+  <img alt="version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -36,6 +36,8 @@
 3. Organize vendors, guests and accommodation; share invitations and collect replies.
 4. Choose table capacities, assign guests in the round-table view and prepare the wedding-day timeline.
 5. Export information when needed for family members and on-site helpers.
+
+The owner can permanently delete a wedding from the bottom of the family group page by typing its full title. This clears planning data, members, guests and replies, and revokes group invitations and guest invitation links. Export anything you need beforehand. If cloud-file cleanup fails, the owner can retry from the wedding list. Previously exported, downloaded or forwarded copies cannot be recalled. The server retains only a minimal deletion marker without wedding or guest details for duplicate requests and cleanup recovery.
 
 ## Local development
 

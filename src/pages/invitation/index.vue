@@ -36,6 +36,7 @@ onLoad(options) {
     this.load();
 },
 async onPullDownRefresh() { await this.load(); wx.stopPullDownRefresh(); },
+onShow() { if (this.runtime._shown) this.load(); this.runtime._shown = true; },
 onHide() { if (this.runtime.audio)
     this.runtime.audio.pause(); },
 onUnload() { if (this.runtime.audio)
@@ -69,11 +70,17 @@ async load() {
         this.applyInvitation(invitation);
     }
     catch (error) {
+        this.clearInvalidInvitation(error);
         updateState(this.state, { error: error.message });
     }
     finally {
         updateState(this.state, { loading: false });
     }
+},
+clearInvalidInvitation(error) {
+    if (!['INVITATION_EXPIRED', 'GROUP_DELETED', 'FORBIDDEN', 'NO_GROUP'].includes(error.code)) return;
+    if (this.runtime.audio) { this.runtime.audio.destroy(); this.runtime.audio = null; }
+    updateState(this.state, { invitation: null, playing: false, submitted: false, note: '', error: error.message });
 },
 applyInvitation(invitation) {
     const guest = invitation.guest;
@@ -113,6 +120,7 @@ async submit() {
         wx.showToast({ title: '回复已送达，谢谢你', icon: 'none', duration: 2500 });
     }
     catch (error) {
+        this.clearInvalidInvitation(error);
         service.showError(error);
     }
     finally {

@@ -162,7 +162,11 @@ async load() {
             this.renderAssignment();
     }
     catch (error) {
-        updateState(this.state, { error: error.message || '暂时无法读取排桌信息', noGroup: error.code === 'NO_GROUP' });
+        if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
+            this.runtime._group = null;
+            updateState(this.state, { tables: [], waiting: [], tableEditor: false, assignmentOpen: false, tableName: '', guestOptions: [], tableOptions: [] });
+        }
+        updateState(this.state, { error: error.message || '暂时无法读取排桌信息', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) });
     }
     finally {
         this.runtime._loading = false;

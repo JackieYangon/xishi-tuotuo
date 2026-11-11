@@ -49,7 +49,13 @@ const repo = {
 };
 const storage = {
   async upload(cloudPath, fileContent) { return (await cloud.uploadFile({ cloudPath, fileContent })).fileID; },
-  async remove(fileID) { await cloud.deleteFile({ fileList: [fileID] }); },
+  async remove(fileID) {
+    const result = await cloud.deleteFile({ fileList: [fileID] });
+    const file = result.fileList && result.fileList.find(entry => entry.fileID === fileID);
+    if (!file || (file.status !== 0 && !/not exist|not found|does not exist/i.test(file.errMsg || ''))) {
+      throw new Error('Cloud file cleanup was not confirmed');
+    }
+  },
   async urls(fileIDs) {
     if (!fileIDs.length) return {};
     const result = await cloud.getTempFileURL({ fileList: fileIDs });

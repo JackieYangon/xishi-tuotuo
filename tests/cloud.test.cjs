@@ -41,6 +41,81 @@ function setup() {
   return { repo, storage, service, call, ok, create, save, uploads, deletedFiles, advance: ms => { clock += ms; } };
 }
 
+test('only the owner can delete, with a current revision and exact title confirmation', async () => {
+  const env = setup(); let group = await env.create();
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '父亲' }, 'dad')).group;
+  const payload = { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title };
+  assert.equal((await env.call('groups.delete', payload, 'dad')).error.code, 'FORBIDDEN');
+  assert.equal((await env.call('groups.delete', { ...payload, ownerId: 'owner' }, 'stranger')).error.code, 'FORBIDDEN');
+  assert.equal((await env.call('groups.delete', { ...payload, revision: 1 })).error.code, 'CONFLICT');
+  assert.equal((await env.call('groups.delete', { ...payload, confirmTitle: '' })).error.code, 'CONFIRMATION_REQUIRED');
+  assert.equal((await env.repo.get(group.id)).status, undefined);
+});
+
+test('deleting a group erases personal data, revokes invites and leaves other groups untouched', async () => {
+  const env = setup(); let group = await env.create(); const other = await env.create('other');
+  group = await env.save(group, 'guests', { name: 'Private guest', partySize: 2 });
+  const issued = await env.ok('invitations.issue', { groupId: group.id, revision: group.revision, guestId: group.guests[0].id });
+  group = issued.group;
+  const originalCode = group.joinCode;
+  const outcome = await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
+  assert.equal(outcome.cleanupPending, false);
+  const marker = await env.repo.get(group.id);
+  assert.equal(marker.status, 'deleted');
+  assert.equal(marker.guests, undefined); assert.equal(marker.tasks, undefined);
+  assert.deepEqual(marker.members, []); assert.deepEqual(marker.media, []);
+  assert.ok(!JSON.stringify(marker).includes('Private guest'));
+  assert.ok(!JSON.stringify(marker).includes('一起办婚礼'));
+  assert.equal((await env.call('groups.get', { groupId: group.id })).error.code, 'GROUP_DELETED');
+  assert.equal((await env.call('groups.join', { code: originalCode, nickname: '家人' }, 'dad')).error.code, 'INVALID_CODE');
+  assert.equal((await env.call('invitations.respond', { token: issued.token, response: {} }, 'visitor')).error.code, 'INVITATION_EXPIRED');
+  assert.equal((await env.call('records.save', { groupId: group.id, revision: group.revision, type: 'tasks', record: { title: 'late' } })).error.code, 'GROUP_DELETED');
+  assert.deepEqual((await env.ok('groups.list')).groups, []);
+  assert.equal((await env.ok('groups.delete', { groupId: group.id })).deleted, true);
+  assert.equal((await env.repo.get(other.id)).status, undefined);
+  assert.equal((await env.repo.get(other.id)).tasks.length, other.tasks.length);
+});
+
+test('media cleanup failures remain owner-retryable and never target another namespace', async () => {
+  const env = setup(); let group = await env.create();
+  const upload = await env.ok('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: Buffer.from([255,216,255,1]).toString('base64') });
+  group = upload.group;
+  const remove = env.storage.remove;
+  env.storage.remove = async () => { throw new Error('storage unavailable'); };
+  const first = await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
+  assert.equal(first.cleanupPending, true);
+  assert.equal((await env.ok('groups.list')).groups[0].deletionPending, true);
+  assert.equal((await env.call('media.urls', { groupId: group.id })).error.code, 'GROUP_DELETED');
+  assert.equal((await env.call('groups.delete', { groupId: group.id }, 'dad')).error.code, 'FORBIDDEN');
+  env.storage.remove = remove;
+  assert.equal((await env.ok('groups.delete', { groupId: group.id })).cleanupPending, false);
+  assert.deepEqual(env.deletedFiles, [upload.fileID]);
+  const other = await env.create();
+  const stored = await env.repo.get(other.id);
+  stored.media.push({ fileID: 'cloud://test/other-project/file.jpg', cloudPath: 'other-project/file.jpg', kind: 'image' });
+  env.repo.groups.set(other.id, stored);
+  assert.equal((await env.ok('groups.delete', { groupId: other.id, revision: other.revision, confirmTitle: other.profile.title })).cleanupPending, true);
+  assert.equal(env.deletedFiles.length, 1);
+});
+
+test('an upload racing deletion cannot resurrect the group and failed rollback remains tracked', async () => {
+  const env = setup(); const group = await env.create();
+  let finish; let started;
+  const uploading = new Promise(resolve => { started = resolve; });
+  env.storage.upload = async path => { started(); return new Promise(resolve => { finish = () => resolve('cloud://test/' + path); }); };
+  const request = env.call('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: Buffer.from([255,216,255,1]).toString('base64') });
+  await uploading;
+  await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
+  env.storage.remove = async () => { throw new Error('temporary'); };
+  finish();
+  assert.equal((await request).error.code, 'GROUP_DELETED');
+  const stored = await env.repo.get(group.id);
+  assert.equal(stored.status, 'deleting'); assert.equal(stored.media.length, 1);
+  assert.equal(stored.tasks, undefined);
+  env.storage.remove = async fileID => env.deletedFiles.push(fileID);
+  assert.equal((await env.ok('groups.delete', { groupId: group.id })).cleanupPending, false);
+});
+
 test('namespace is isolated and app identity is enforced even for public invitations', async () => {
   assert.equal(COLLECTION, 'xishi_tuotuo_groups');
   assert.equal(STORAGE_PREFIX, 'xishi-tuotuo/');

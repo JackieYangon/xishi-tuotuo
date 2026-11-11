@@ -1,7 +1,7 @@
 <h1 align="center">喜事妥妥</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-00866a?style=flat-square" />
+  <img alt="version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -36,6 +36,8 @@
 3. 整理商家、宾客和住宿信息，将请柬分享给亲友并收集回执。
 4. 设置每桌人数，在圆桌视图安排宾客，补充婚礼当天流程。
 5. 根据需要导出资料，让家人和现场工作人员查阅。
+
+群主可在「家庭群组」底部删除婚礼群组，需完整输入婚礼名称确认。删除不可恢复，会清空筹备资料、成员、宾客和回执，并使旧群组邀请和请柬失效；请提前导出所需资料。云文件清理失败时，群主可在「我参与的婚礼」重试清理。已经导出、下载或转发的副本无法撤回。云端仅保留不含婚礼和宾客资料的最小删除标记，用于重复请求和失败清理。
 
 ## 本地开发
 

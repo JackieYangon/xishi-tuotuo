@@ -182,7 +182,11 @@ async load() {
             this.renderFields();
     }
     catch (error) {
-        updateState(this.state, { error: error.message || '暂时无法读取，请稍后重试', noGroup: error.code === 'NO_GROUP' });
+        if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
+            this.runtime._group = null;
+            updateState(this.state, { rows: [], stats: [], form: {}, fields: [], editorOpen: false, noGroup: true });
+        }
+        updateState(this.state, { error: error.message || '暂时无法读取，请稍后重试', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) });
     }
     finally {
         this.runtime._loading = false;

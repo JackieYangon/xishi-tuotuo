@@ -54,6 +54,7 @@ function assertSize(group) {
   if (Buffer.byteLength(JSON.stringify(group), 'utf8') > MAX_DOCUMENT_BYTES) fail('LIMIT_REACHED', '本群组资料已接近容量上限，请先导出并精简不需要的内容');
 }
 function member(group, userId) {
+  if (group && group.status) fail('GROUP_DELETED', '此婚礼群组已删除，无法继续访问');
   if (!group || !group.members.some(entry => entry.id === userId)) fail('FORBIDDEN', '你不是此筹备群组的成员');
 }
 function revision(group, expected) {
@@ -178,7 +179,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
     if (!/^[a-f0-9]{64}$/.test(token)) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
     const tokenHash = hash(token);
     const group = await repo.findByInvitationHash(tokenHash);
-    const invite = group && group.invitations.find(entry => entry.tokenHash === tokenHash);
+    const invite = group && !group.status && group.invitations.find(entry => entry.tokenHash === tokenHash);
     if (!invite || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
     return { group, invite, tokenHash };
   }
@@ -197,7 +198,37 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
       let data;
       if (event.action === 'groups.list') {
         const groups = await repo.listForMember(userId);
-        data = { groups: groups.map(group => ({ id: group.id, title: group.profile.title, date: group.profile.date, memberCount: group.members.length })), userId };
+        data = { groups: groups.filter(group => group.status !== 'deleted').map(group => ({ id: group.id, title: group.profile.title, date: group.profile.date, memberCount: group.members.length, deletionPending: group.status === 'deleting' })), userId };
+      } else if (event.action === 'groups.delete') {
+        const groupId = id(payload.groupId, '群组标识');
+        const pending = await repo.transact(groupId, async group => {
+          if (!group || group.ownerId !== userId) fail('FORBIDDEN', '仅群主可以删除此群组');
+          if (group.status) return { group, result: group.media || [] };
+          revision(group, payload.revision);
+          if (payload.confirmTitle !== group.profile.title) fail('CONFIRMATION_REQUIRED', '请输入完整婚礼名称确认删除');
+          // Keep only a cleanup/idempotency marker; erase all wedding and guest data atomically.
+          const marker = { id: groupId, ownerId: userId, status: 'deleting', revision: group.revision + 1,
+            profile: { title: '已删除的婚礼' }, members: [], memberIds: [userId],
+            media: group.media || [], invitations: [], invitationHashes: [], joinCode: '', deletedAt: now() };
+          return { group: marker, result: marker.media };
+        });
+        // Bounded parallel cleanup avoids exceeding the function time budget. Failed entries remain retryable.
+        const removed = [];
+        await Promise.all(pending.map(async file => {
+          const prefix = `${STORAGE_PREFIX}${groupId}/`;
+          if (!storage || !file.cloudPath || !file.cloudPath.startsWith(prefix) || file.cloudPath.slice(prefix.length).includes('/') || !file.fileID.startsWith('cloud://') || !file.fileID.endsWith('/' + file.cloudPath)) return;
+          try {
+            await storage.remove(file.fileID);
+            removed.push(file.fileID);
+          } catch (_) { /* Preserve the cleanup entry for the owner's next retry. */ }
+        }));
+        data = await repo.transact(groupId, async group => {
+          group.media = group.media.filter(entry => !removed.includes(entry.fileID));
+          const cleanupPending = group.media.length > 0;
+          group.status = cleanupPending ? 'deleting' : 'deleted';
+          group.memberIds = cleanupPending ? [userId] : [];
+          return { group, result: { deleted: true, groupId, cleanupPending } };
+        });
       } else if (event.action === 'groups.create') {
         const nickname = text(payload.nickname, '你的称呼', 30, true);
         const role = text(payload.role, '身份', 20) || '家人';
@@ -221,7 +252,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         const match = await repo.findByJoinCode(code);
         if (!match) fail('INVALID_CODE', '群组邀请码不正确或已过期');
         data = await repo.transact(match.id, async group => {
-          if (!group || group.joinCode !== code || group.joinCodeExpiresAt < now()) fail('INVALID_CODE', '群组邀请码不正确或已过期');
+          if (!group || group.status || group.joinCode !== code || group.joinCodeExpiresAt < now()) fail('INVALID_CODE', '群组邀请码不正确或已过期');
           if (group.members.some(entry => entry.id === userId)) return { group, result: { group: privateGroup(group, userId) } };
           if (group.members.length >= 30) fail('LIMIT_REACHED', '一个筹备群组最多 30 位成员');
           group.members.push({ id: userId, nickname, role });
@@ -338,14 +369,22 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         try {
           data = await mutate(payload, userId, current => { current.media.push({ fileID, kind, cloudPath }); return { fileID }; });
         } catch (error) {
-          await storage.remove(fileID).catch(() => {});
+          try { await storage.remove(fileID); }
+          catch (_) {
+            // A concurrent deletion must not lose an upload that finished after its snapshot.
+            await repo.transact(group.id, async current => {
+              if (!current.media.some(file => file.fileID === fileID)) current.media.push({ fileID, kind, cloudPath });
+              if (current.status) { current.status = 'deleting'; current.memberIds = [current.ownerId]; }
+              return { group: current, result: null };
+            });
+          }
           throw error;
         }
       } else fail('INVALID_ACTION', '不支持此操作，请更新小程序');
       return { ok: true, data };
     } catch (error) {
       if (error instanceof AppError) return { ok: false, error: { code: error.code, message: error.message } };
-      return { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: '云端暂时无法完成操作，请稍后重试；原有数据已保留' } };
+      return { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: '云端暂时无法确认操作结果，请刷新后重试' } };
     }
   };
 }

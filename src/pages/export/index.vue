@@ -107,7 +107,7 @@ async load() {
     catch (error) {
         this.runtime._group = null;
         if (!this.runtime._destroyed)
-            updateState(this.state, { error: error.message || '资料暂时无法读取，请稍后重试', noGroup: error.code === 'NO_GROUP', filePath: '' });
+            updateState(this.state, { error: error.message || '资料暂时无法读取，请稍后重试', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code), filePath: '', title: '' });
     }
     finally {
         this.runtime._loading = false;

@@ -30,6 +30,18 @@ function createPage(customMutation) {
   return { page, group, calls };
 }
 
+test('deleting a group clears an open editor and private list on refresh', async () => {
+  const { mountPage } = require('./vue-harness.cjs');
+  const page = mountPage(path.join(__dirname, '../src/pages/manage/index.vue'), { wx: {} }, name => name.includes('service') ? {
+    async getGroup() { throw Object.assign(new Error('此群组已删除'), { code: 'GROUP_DELETED' }); }
+  } : catalog);
+  Object.assign(page.state, { rows: [{ name: 'Private guest' }], form: { phone: 'private' }, editorOpen: true });
+  await page.load();
+  assert.deepEqual(page.state.rows, []); assert.deepEqual(page.state.form, {});
+  assert.equal(page.state.editorOpen, false); assert.equal(page.state.noGroup, true);
+  assert.equal(page.runtime._group, null);
+});
+
 test('task editor keeps its original revision after background list refresh', async () => {
   const { page, group, calls } = createPage();
   page.openEdit({ currentTarget: { dataset: { id: 'task-a' } } });

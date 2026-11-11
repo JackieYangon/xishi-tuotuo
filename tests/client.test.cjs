@@ -44,6 +44,43 @@ function group(revision, changes = {}) {
 }
 const input = (key, value) => ({ currentTarget: { dataset: { key } }, detail: { value } });
 
+test('group deletion clears only its own cached selection and supports cleanup retries', async () => {
+  const { service, pending } = serviceHarness();
+  service.setGroup(group(1));
+  const deleting = service.deleteGroup('wedding-a', 1, 'Title');
+  pending[0].resolve(result({ deleted: true, groupId: 'wedding-a', cleanupPending: true }));
+  await deleting;
+  assert.equal(service.getGroupId(), ''); assert.equal(service.getCachedGroup(), null);
+  service.setGroup({ ...group(1), id: 'wedding-b' });
+  const retry = service.deleteGroup('wedding-a');
+  pending[1].resolve(result({ deleted: true, cleanupPending: false }));
+  await retry;
+  assert.equal(service.getGroupId(), 'wedding-b');
+});
+
+test('group deletion requires typed confirmation and a failed request preserves the retry dialog', async () => {
+  let requests = 0;
+  const { page } = pageHarness('src/pages/group/index.vue', {
+    async deleteGroup() { requests++; throw new Error('网络中断'); }
+  });
+  page.applyGroup(group(1)); page.openDelete();
+  await page.deleteWedding(); assert.equal(requests, 0);
+  page.state.deleteTitle = page.state.group.profile.title;
+  await page.deleteWedding();
+  assert.equal(requests, 1); assert.equal(page.state.deleteOpen, true);
+  assert.equal(page.state.busy, false); assert.equal(page.state.deleteError, '网络中断');
+});
+
+test('revoked invitation clears its private view and stops audio playback', () => {
+  const { page } = pageHarness('src/pages/invitation/index.vue', {});
+  let stopped = false;
+  page.state.invitation = { guest: { name: 'Guest' } };
+  page.runtime.audio = { destroy() { stopped = true; } };
+  page.clearInvalidInvitation({ code: 'INVITATION_EXPIRED', message: '已失效' });
+  assert.equal(page.state.invitation, null); assert.equal(page.runtime.audio, null);
+  assert.equal(stopped, true);
+});
+
 test('out-of-order group reads never downgrade cached revisions', async () => {
   const { service, pending } = serviceHarness();
   service.setGroup(group(1));

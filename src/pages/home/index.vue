@@ -62,7 +62,7 @@ async load() {
             itemsReady: group.items.filter(item => item.status === 'ready').length });
     }
     catch (error) {
-        if (['FORBIDDEN', 'NOT_FOUND'].includes(error.code))
+        if (['FORBIDDEN', 'NOT_FOUND', 'GROUP_DELETED'].includes(error.code))
             service.setGroup(null);
         updateState(this.state, { error: error.message, group: null });
     }

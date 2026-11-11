@@ -28,7 +28,9 @@ async function call(action, payload = {}) {
   const result = response.result;
   if (!result || !result.ok) {
     const error = new Error(result && result.error && result.error.message || '操作未完成，请稍后重试');
-    error.code = result && result.error && result.error.code || 'SERVICE_ERROR'; throw error;
+    error.code = result && result.error && result.error.code || 'SERVICE_ERROR';
+    if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) && payload.groupId && getGroupId() === payload.groupId) setGroup(null);
+    throw error;
   }
   return result.data;
 }
@@ -47,6 +49,11 @@ async function mutate(action, payload = {}, expectedRevision) {
   if (data.group && getGroupId() === group.id) setGroup(data.group);
   return data;
 }
+async function deleteGroup(groupId, revision = undefined, confirmTitle = undefined) {
+  const data = await call('groups.delete', { groupId, revision, confirmTitle });
+  if (data.deleted && getGroupId() === groupId) setGroup(null);
+  return data;
+}
 function showError(error) { wx.showToast({ title: error.message || '操作失败，请重试', icon: 'none', duration: 3500 }); }
 function confirm(content, title = '请确认') {
   return new Promise(resolve => wx.showModal({ title, content, confirmColor: '#954b50', success: result => resolve(result.confirm), fail: () => resolve(false) }));
@@ -56,4 +63,4 @@ async function upload(path, kind, name) {
   const base64 = await new Promise((resolve, reject) => wx.getFileSystemManager().readFile({ filePath: path, encoding: 'base64', success: r => resolve(r.data), fail: reject }));
   return mutate('media.upload', { base64, kind, name });
 }
-export default { call, getGroup, getGroupId, getCachedGroup, setGroup, mutate, showError, confirm, chooseFile, upload };
+export default { call, getGroup, getGroupId, getCachedGroup, setGroup, mutate, deleteGroup, showError, confirm, chooseFile, upload };
