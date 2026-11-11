@@ -3,11 +3,12 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { parse, compileTemplate } = require('@vue/compiler-sfc')
 const root = path.resolve(__dirname, '..')
-const excluded = new Set(['.git', 'node_modules', '.tools', '.artifacts', 'dist', 'coverage', 'tmp', 'temp', 'exports', 'screenshots', 'test-results', 'playwright-report'])
+const excluded = new Set(['.git', '.codex', 'node_modules', '.tools', '.artifacts', 'dist', 'coverage', 'tmp', 'temp', 'exports', 'screenshots', 'test-results', 'playwright-report'])
 const localOnly = new Set([
   'project.config.json', 'project.private.config.json',
-  'miniprogram/config.local.js', 'miniprogram/version.js',
+  'src/config.local.json', 'src/version.json', 'src/manifest.json',
   'cloudfunctions/xishiTuotuoApi/local-config.json',
 ])
 const failures = []
@@ -28,6 +29,15 @@ let javascriptCount = 0
 let jsonCount = 0
 for (const filename of files) {
   const extension = path.extname(filename)
+  if (extension === '.vue') {
+    const parsed = parse(read(filename), { filename })
+    for (const error of parsed.errors) report(filename, String(error))
+    if (parsed.descriptor.script?.lang !== 'ts') report(filename, 'Vue components must use TypeScript')
+    if (parsed.descriptor.template) {
+      const result = compileTemplate({ source: parsed.descriptor.template.content, filename, id: relative(filename) })
+      for (const error of result.errors) report(filename, String(error))
+    }
+  }
   if (extension === '.json') {
     jsonCount++
     try { JSON.parse(read(filename)) } catch (error) { report(filename, error.message) }
@@ -46,37 +56,24 @@ for (const filename of files) {
   }
 }
 
-const appPath = path.join(root, 'miniprogram/app.json')
+const appPath = path.join(root, 'src/pages.json')
 let pageCount = 0
 try {
   const app = JSON.parse(read(appPath))
-  const pages = [...(app.pages || [])]
-  for (const subpackage of app.subPackages || app.subpackages || []) {
-    for (const page of subpackage.pages || []) pages.push(`${subpackage.root}/${page}`)
-  }
+  const pages = app.pages.map(page => page.path)
   pageCount = pages.length
-  if (!pageCount) report(appPath, 'At least one page must be registered')
-  if (new Set(pages).size !== pages.length) report(appPath, 'Duplicate page registration')
+  if (!pageCount || new Set(pages).size !== pages.length) report(appPath, 'Missing or duplicate pages')
   for (const page of pages) {
-    if (typeof page !== 'string' || !/^[\w/-]+$/.test(page) || page.includes('..')) {
-      report(appPath, `Invalid page path ${page}`)
-      continue
-    }
-    for (const extension of ['.js', '.json', '.wxml', '.wxss']) {
-      if (!fs.existsSync(path.join(root, 'miniprogram', page + extension))) report(appPath, `Registered page is missing ${page}${extension}`)
-    }
-  }
-  for (const item of app.tabBar?.list || []) {
-    if (!pages.includes(item.pagePath)) report(appPath, `Unregistered tab page ${item.pagePath}`)
+    if (!/^[\w/-]+$/.test(page) || page.includes('..') || !fs.existsSync(path.join(root, 'src', page + '.vue'))) report(appPath, 'Missing or invalid Vue page: ' + page)
   }
 } catch (error) { report(appPath, error.message) }
 
 // Inspect shared product files, not local generated configuration or identity test fixtures.
-const sharedRoots = ['miniprogram/', 'cloudfunctions/']
+const sharedRoots = ['src/', 'cloudfunctions/']
 const sharedFiles = new Set(['README.md', 'README.en.md', 'AGENTS.md', 'project.config.template.json', 'package.json'])
 const scan = files.filter((filename) => {
   const name = relative(filename)
-  return !localOnly.has(name) && (sharedFiles.has(name) || sharedRoots.some((prefix) => name.startsWith(prefix))) && /\.(?:js|cjs|json|md|wxml|wxss)$/.test(name)
+  return !localOnly.has(name) && (sharedFiles.has(name) || sharedRoots.some((prefix) => name.startsWith(prefix))) && /\.(?:js|ts|vue|cjs|json|md)$/.test(name)
 })
 const envExample = path.join(root, '.env.example')
 if (fs.existsSync(envExample)) scan.push(envExample)

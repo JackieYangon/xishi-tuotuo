@@ -1,3 +1,4 @@
+const { loadModule, mountPage } = require('./vue-harness.cjs');
 'use strict';
 
 const test = require('node:test');
@@ -5,8 +6,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { createWorkbook, utf8, crc32, cleanText, columnName } = require('../miniprogram/utils/xlsx');
-const { buildSheets, CATEGORIES } = require('../miniprogram/utils/export-data');
+const { createWorkbook, utf8, crc32, cleanText, columnName } = loadModule(require('node:path').join(__dirname, '../src/utils/xlsx.js'));
+const { buildSheets, CATEGORIES } = loadModule(require('node:path').join(__dirname, '../src/utils/export-data.js'));
 
 function archive(bytes) {
   const buffer = Buffer.from(bytes);
@@ -162,17 +163,13 @@ function pageHarness(options = {}) {
     openDocument(input) { calls.opened.push(input); input.success({}); },
     shareFileMessage(input) { calls.shared.push(input); input.success({}); }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../miniprogram/pages/export/index.js'), 'utf8'), {
-    Page(page) { definition = page; }, wx, console,
-    require(name) {
+  const page = mountPage(path.join(__dirname, '../src/pages/export/index.vue'), { wx, console }, name => {
       if (name === '../../utils/service') return service;
       if (name === '../../utils/export-data') return { buildSheets, CATEGORIES };
       if (name === '../../utils/xlsx') return { createWorkbook };
-      if (name === '../../version') return { version: '0.1.0' };
+      if (name === '../../version.json') return { version: '0.2.0' };
       throw new Error('Unexpected module ' + name);
-    }
   });
-  const page = Object.assign({}, definition, { data: JSON.parse(JSON.stringify(definition.data)), setData(next) { Object.assign(this.data, next); } });
   return { page, calls };
 }
 
@@ -183,19 +180,19 @@ test('page saves real XLSX, refreshes membership and removes only its old export
   assert.equal(calls.writes.length, 1);
   assert.equal(archive(new Uint8Array(calls.writes[0].data)).size, 15);
   assert.deepEqual(calls.deleted, ['/sandbox/xishi-export-old.xlsx']);
-  assert.match(page.data.filePath, /^\/sandbox\/xishi-export-.*\.xlsx$/);
-  assert.equal(page.data.sheetCount, 8); assert.equal(page.data.generating, false);
+  assert.match(page.state.filePath, /^\/sandbox\/xishi-export-.*\.xlsx$/);
+  assert.equal(page.state.sheetCount, 8); assert.equal(page.state.generating, false);
   assert.equal(calls.toasts.filter(toast => toast.icon === 'success').length, 1);
   await page.openFile(); await page.shareFile();
   assert.equal(calls.opened[0].fileType, 'xlsx'); assert.equal(calls.opened[0].showMenu, true);
-  assert.equal(calls.shared[0].filePath, page.data.filePath);
+  assert.equal(calls.shared[0].filePath, page.state.filePath);
 });
 
 test('page never reports success for failed saves and keeps unrelated or previous exports intact', async () => {
   const { page, calls } = pageHarness({ writeFailure: true });
   await page.load(); await page.exportFile();
-  assert.equal(page.data.filePath, ''); assert.equal(page.data.generating, false);
-  assert.match(page.data.exportError, /未能保存/);
+  assert.equal(page.state.filePath, ''); assert.equal(page.state.generating, false);
+  assert.match(page.state.exportError, /未能保存/);
   assert.equal(calls.toasts.filter(toast => toast.icon === 'success').length, 0);
   assert.ok(!calls.deleted.includes('/sandbox/xishi-export-old.xlsx'));
   assert.equal(calls.deleted[0], calls.writes[0].filePath, 'only a possibly partial new file is removed');
@@ -203,7 +200,7 @@ test('page never reports success for failed saves and keeps unrelated or previou
 
 test('page offers group navigation when no group is selected', async () => {
   const { page, calls } = pageHarness({ noGroup: true });
-  await page.load(); assert.equal(page.data.noGroup, true); assert.equal(page.data.loading, false);
+  await page.load(); assert.equal(page.state.noGroup, true); assert.equal(page.state.loading, false);
   page.goGroup(); assert.equal(calls.navigation, '/pages/group/index');
   await page.exportFile(); assert.equal(calls.writes.length, 0);
 });

@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
-if (args.length > 1 || (args.length === 1 && args[0] !== '--example')) {
-  throw new Error('Usage: node scripts/prepare-local-config.cjs [--example]')
+if (args.length > 1 || (args.length === 1 && !['--example', '--dev'].includes(args[0]))) {
+  throw new Error('Usage: node scripts/prepare-local-config.cjs [--example | --dev]')
 }
 const example = args.includes('--example')
 const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
@@ -67,6 +67,7 @@ const previous = fs.existsSync(projectPath) ? JSON.parse(fs.readFileSync(project
 const project = {
   ...previous,
   ...template,
+  miniprogramRoot: args.includes('--dev') ? 'dist/dev/mp-weixin/' : template.miniprogramRoot,
   setting: { ...(previous.setting || {}), ...template.setting },
   appid,
 }
@@ -74,9 +75,10 @@ const json = (value) => JSON.stringify(value, null, 2) + '\n'
 const generated = '// Generated locally by scripts/prepare-local-config.cjs. Do not commit.\n'
 const writes = [
   ['project.config.json', json(project)],
-  ['miniprogram/config.local.js', generated + 'module.exports = ' + json({ envId, resourceAppid, functionName: 'xishiTuotuoApi' })],
+  ['src/manifest.json', json({ name: '喜事妥妥', appid: '', versionName: version, versionCode, uniStatistics: { enable: false }, vueVersion: '3', 'mp-weixin': { appid, setting: { urlCheck: true }, usingComponents: true, permission: { 'scope.userLocation': { desc: '用于选择婚礼场地，方便亲友导航赴宴' } }, requiredPrivateInfos: ['chooseLocation'], lazyCodeLoading: 'requiredComponents' } })],
+  ['src/config.local.json', json({ envId, resourceAppid, functionName: 'xishiTuotuoApi' })],
   ['cloudfunctions/xishiTuotuoApi/local-config.json', json({ allowedAppId: example ? '' : appid })],
-  ['miniprogram/version.js', generated + 'module.exports = ' + json({ version, versionCode })],
+  ['src/version.json', json({ version, versionCode })],
 ]
 
 // Validate all input before replacing generated files; each rename keeps a complete file.

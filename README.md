@@ -1,5 +1,15 @@
 <h1 align="center">喜事妥妥</h1>
-<p align="center"><b>一家人，把婚礼安排妥当。</b><br />基于微信原生小程序与云开发的家庭协作备婚工具。</p>
+<!-- badges:start -->
+<p align="center">
+  <img alt="version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-00866a?style=flat-square" />
+  <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
+  <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
+  <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
+  <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&amp;logo=vuedotjs&amp;logoColor=white" /></a>
+  <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" /></a>
+</p>
+<!-- badges:end -->
+<p align="center"><b>一家人，把婚礼安排妥当。</b><br />基于 Vue 3、TypeScript、uni-app 与微信云开发的家庭协作备婚工具。</p>
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
 <p align="center"><a href="#主要功能">功能介绍</a> · <a href="#开始使用">开始使用</a> · <a href="#本地开发">本地开发</a> · <a href="#云开发部署">云开发部署</a></p>
 
@@ -29,17 +39,18 @@
 
 ## 本地开发
 
-需要 Node.js 20 或更高版本，以及微信开发者工具。前端采用原生 JavaScript、WXML 和 WXSS，不需要前端框架构建。
+需要 Node.js 20 或更高版本，以及微信开发者工具。前端页面使用 Vue 3 单文件组件和 TypeScript，通过 [uni-app 官方工具链](https://uniapp.dcloud.net.cn/worktile/CLI.html) 编译为微信小程序。
 
 ```powershell
 git clone https://github.com/JackieYangon/xishi-tuotuo.git
 cd xishi-tuotuo
+npm ci
 if (!(Test-Path -LiteralPath .env.local)) { Copy-Item .env.example .env.local }
 # 在 .env.local 填写自己的 WECHAT_APPID 和 CLOUD_ENV_ID
-npm run setup
+npm run build:mp-weixin
 ```
 
-用微信开发者工具导入仓库根目录。生成的 `project.config.json` 会将小程序目录指向 `miniprogram/`，云函数目录指向 `cloudfunctions/`。
+用微信开发者工具导入仓库根目录。生成的 `project.config.json` 将小程序目录指向 `dist/build/mp-weixin/`，云函数目录指向 `cloudfunctions/`。编辑 `src/pages/` 下的 `.vue` 页面后重新构建。持续开发运行 `npm run dev:mp-weixin`，会自动切换到 `dist/dev/mp-weixin/`；生产构建会恢复生产目录。切换模式后重新打开开发者工具项目。不要编辑或提交 `dist/` 中的编译结果。
 
 `CLOUD_ENV_ID` 必须填写云开发控制台显示的**完整环境 ID**，不能填写环境昵称。AppID 和环境 ID 只存放于本地配置，不写入共享源文件。不要在前端、README 或提交中放入 AppSecret、访问令牌和服务密钥。
 
@@ -49,6 +60,7 @@ npm run setup
 
 ```powershell
 npm test
+npm run type-check
 npm run check
 ```
 
@@ -57,6 +69,7 @@ npm run check
 ```powershell
 node scripts/prepare-local-config.cjs --example
 npm test
+npm run type-check
 npm run check
 ```
 
@@ -83,13 +96,13 @@ npm run check
 
 ## 配置与版本
 
-`package.json` 的 `version` 是唯一版本来源；`npm run setup` 自动生成小程序版本模块。版本采用主版本、次版本、修订号：重大升级、新增功能、修复分别递增对应位置。
+`package.json` 的 `version` 是唯一版本来源；`npm run setup` 自动生成小程序版本模块。升级版本后运行 `npm run docs:badges`，同步两个 README 的版本徽章。版本采用主版本、次版本、修订号：重大升级、新增功能、修复分别递增对应位置。
 
 共享项目设置修改 `project.config.template.json`。以下文件由本地生成或由开发者工具维护，不提交 Git：
 
 - `.env.local`
 - `project.config.json`、`project.private.config.json`
-- `miniprogram/config.local.js`、`miniprogram/version.js`
+- `src/config.local.json`、`src/version.json`、`src/manifest.json`
 - `cloudfunctions/xishiTuotuoApi/local-config.json`
 
 更换 AppID、云环境、资源方 AppID 或版本后重新运行 `npm run setup`；云函数配置变化后，重新部署本项目云函数。资源共享授权不改变本项目专用集合、文件目录和成员权限，也不需要修改全环境安全规则。
@@ -97,7 +110,8 @@ npm run check
 ## 项目结构
 
 ```text
-miniprogram/                         小程序页面、服务和样式
+src/                                Vue 3 页面、TypeScript 入口、服务和样式
+dist/                               本地编译产物（不提交）
 cloudfunctions/xishiTuotuoApi/       本项目云函数与权限校验
 scripts/prepare-local-config.cjs     本地配置及版本生成
 scripts/check.cjs                    语法、配置及页面完整性检查

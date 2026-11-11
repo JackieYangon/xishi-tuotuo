@@ -1,9 +1,10 @@
+const { loadModule, mountPage } = require('./vue-harness.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const catalog = require('../miniprogram/utils/catalog');
+const catalog = loadModule(path.join(__dirname, '../src/utils/catalog.js'));
 
 function createPage(customMutation) {
   const group = {
@@ -22,20 +23,8 @@ function createPage(customMutation) {
       return { group };
     }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../miniprogram/pages/manage/index.js'), 'utf8'), {
-    require: name => name.includes('service') ? service : catalog,
-    Page: value => { definition = value; },
-    wx: { setNavigationBarTitle() {}, showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {} }
-  });
-  const page = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), _group: group, _revision: group.revision };
-  page.setData = function (patch) {
-    for (const [key, value] of Object.entries(patch)) {
-      const parts = key.split('.');
-      let target = this.data;
-      for (const part of parts.slice(0, -1)) target = target[part];
-      target[parts[parts.length - 1]] = value;
-    }
-  };
+  const page = mountPage(path.join(__dirname, '../src/pages/manage/index.vue'), { wx: { setNavigationBarTitle() {}, showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {} } }, name => name.includes('service') ? service : catalog);
+  page.runtime._group = group; page.runtime._revision = group.revision;
   page.onLoad({ type: 'tasks' });
   page.renderRecords();
   return { page, group, calls };
@@ -50,8 +39,8 @@ test('task editor keeps its original revision after background list refresh', as
   await page.load();
   await page.save();
   assert.equal(calls[0].expectedRevision, 1);
-  assert.equal(page.data.form.title, 'Unsaved task draft');
-  assert.equal(page.data.editorConflict, true);
+  assert.equal(page.state.form.title, 'Unsaved task draft');
+  assert.equal(page.state.editorConflict, true);
   await page.save();
   assert.equal(calls.length, 1, 'conflicted drafts must not be written using a newer cache revision');
 });
@@ -59,13 +48,13 @@ test('task editor keeps its original revision after background list refresh', as
 test('explicit reload discards the stale draft before using the latest revision', async () => {
   const { page, group, calls } = createPage();
   page.openEdit({ currentTarget: { dataset: { id: 'task-a' } } });
-  page.data.form.title = 'Unsaved draft';
+  page.state.form.title = 'Unsaved draft';
   group.revision = 2;
   group.tasks[0].title = 'Family edit';
   await page.save();
   await page.reloadEditor();
-  assert.equal(page.data.form.title, 'Family edit');
-  assert.equal(page.data.editorConflict, false);
+  assert.equal(page.state.form.title, 'Family edit');
+  assert.equal(page.state.editorConflict, false);
   await page.save();
   assert.equal(calls[1].expectedRevision, 2);
   assert.equal(calls[1].payload.record.title, 'Family edit');
@@ -86,7 +75,7 @@ test('lodging editor exposes already assigned guests who later decline the invit
   page.onLoad({ type: 'lodgings' });
   page.renderRecords();
   page.openEdit({ currentTarget: { dataset: { id: 'room-a' } } });
-  const field = page.data.fields.find(item => item.kind === 'guests');
+  const field = page.state.fields.find(item => item.kind === 'guests');
   assert.equal(field.choices.length, 1);
   assert.equal(field.choices[0].checked, true);
   assert.equal(field.choices[0].notAttending, true);

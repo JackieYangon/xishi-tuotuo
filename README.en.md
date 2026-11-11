@@ -1,5 +1,15 @@
 <h1 align="center">Xishi Tuotuo</h1>
-<p align="center"><b>Plan your wedding together, as a family.</b><br />A native WeChat mini program for collaborative wedding planning, powered by WeChat Cloud Development.</p>
+<!-- badges:start -->
+<p align="center">
+  <img alt="version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-00866a?style=flat-square" />
+  <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
+  <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
+  <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
+  <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&amp;logo=vuedotjs&amp;logoColor=white" /></a>
+  <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" /></a>
+</p>
+<!-- badges:end -->
+<p align="center"><b>Plan your wedding together, as a family.</b><br />A collaborative wedding planner built with Vue 3, TypeScript, uni-app and WeChat Cloud Development.</p>
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 <p align="center"><a href="#features">Features</a> · <a href="#getting-started">Getting started</a> · <a href="#local-development">Local development</a> · <a href="#cloud-deployment">Cloud deployment</a></p>
 
@@ -29,17 +39,18 @@
 
 ## Local development
 
-Use Node.js 20 or newer and WeChat DevTools. The frontend uses native JavaScript, WXML and WXSS and does not require a frontend framework build.
+Use Node.js 20 or newer and WeChat DevTools. Frontend pages use Vue 3 single-file components and TypeScript, compiled to a WeChat mini program with the [official uni-app toolchain](https://uniapp.dcloud.net.cn/worktile/CLI.html).
 
 ```powershell
 git clone https://github.com/JackieYangon/xishi-tuotuo.git
 cd xishi-tuotuo
+npm ci
 if (!(Test-Path -LiteralPath .env.local)) { Copy-Item .env.example .env.local }
 # Set your own WECHAT_APPID and CLOUD_ENV_ID in .env.local.
-npm run setup
+npm run build:mp-weixin
 ```
 
-Import the repository root into WeChat DevTools. The generated `project.config.json` points to `miniprogram/` for the mini program and `cloudfunctions/` for cloud functions.
+Import the repository root into WeChat DevTools. The generated `project.config.json` points to `dist/build/mp-weixin/` for the mini program and `cloudfunctions/` for cloud functions. Edit `.vue` pages under `src/pages/` and rebuild. Watch mode, `npm run dev:mp-weixin`, automatically switches to `dist/dev/mp-weixin/`; a production build restores the production directory. Reopen the DevTools project after switching modes. Do not edit or commit generated files in `dist/`.
 
 Use the **full environment ID** shown in the cloud console for `CLOUD_ENV_ID`, not the environment's display name. Keep the AppID and environment ID in local configuration rather than shared source files. Never put an AppSecret, access token or service credential in the frontend, README or Git commits.
 
@@ -49,6 +60,7 @@ Run checks with:
 
 ```powershell
 npm test
+npm run type-check
 npm run check
 ```
 
@@ -57,6 +69,7 @@ For source checks without a cloud connection, generate example configuration:
 ```powershell
 node scripts/prepare-local-config.cjs --example
 npm test
+npm run type-check
 npm run check
 ```
 
@@ -83,13 +96,13 @@ In a shared environment, create or update only this project's resources listed a
 
 ## Configuration and versions
 
-The `version` in `package.json` is the only version source. `npm run setup` generates the mini program's version module. Major upgrades, new features and fixes increment the major, minor and patch components respectively.
+The `version` in `package.json` is the only version source. `npm run setup` generates the mini program's version module. After updating the version, run `npm run docs:badges` to synchronize both README version badges. Major upgrades, new features and fixes increment the major, minor and patch components respectively.
 
 Edit `project.config.template.json` for shared project settings. The following local or DevTools-generated files are excluded from Git:
 
 - `.env.local`
 - `project.config.json` and `project.private.config.json`
-- `miniprogram/config.local.js` and `miniprogram/version.js`
+- `src/config.local.json`, `src/version.json` and `src/manifest.json`
 - `cloudfunctions/xishiTuotuoApi/local-config.json`
 
 Run `npm run setup` again after changing the AppID, cloud environment, resource-owner AppID or version. Redeploy this project's cloud function when its configuration changes. Resource-sharing authorization does not change this project's dedicated collection, file prefix or member permissions, and does not require changes to environment-wide security rules.
@@ -97,7 +110,8 @@ Run `npm run setup` again after changing the AppID, cloud environment, resource-
 ## Project structure
 
 ```text
-miniprogram/                         Mini program pages, services and styles
+src/                                Vue 3 pages, TypeScript entry, services and styles
+dist/                               Local build output (not committed)
 cloudfunctions/xishiTuotuoApi/       Project cloud function and authorization
 scripts/prepare-local-config.cjs     Local configuration and version generation
 scripts/check.cjs                    Syntax, configuration and page checks

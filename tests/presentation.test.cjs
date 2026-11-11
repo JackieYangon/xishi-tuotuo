@@ -1,6 +1,7 @@
+const { loadModule } = require('./vue-harness.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { progress, countdown } = require('../miniprogram/utils/presentation');
+const { progress, countdown } = loadModule(require('node:path').join(__dirname, '../src/utils/presentation.js'));
 
 test('wedding progress is based on completed tasks with a defined empty state', () => {
   assert.deepEqual(progress([]), { total: 0, done: 0, percent: 0 });

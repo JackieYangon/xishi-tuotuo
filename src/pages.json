@@ -1,0 +1,58 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationBarTitleText": "喜事妥妥"
+      }
+    },
+    {
+      "path": "pages/group/index",
+      "style": {
+        "navigationBarTitleText": "家庭筹备群组",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/manage/index",
+      "style": {
+        "navigationBarTitleText": "婚礼筹备",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark",
+        "usingComponents": {}
+      }
+    },
+    {
+      "path": "pages/seating/index",
+      "style": {
+        "navigationBarTitleText": "婚宴排桌",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark",
+        "usingComponents": {}
+      }
+    },
+    {
+      "path": "pages/invitation/index",
+      "style": {
+        "navigationBarTitleText": "诚邀赴宴",
+        "enablePullDownRefresh": true,
+        "navigationBarBackgroundColor": "#954b50",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/export/index",
+      "style": {
+        "navigationBarTitleText": "导出筹备资料"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTitleText": "喜事妥妥",
+    "navigationBarBackgroundColor": "#faf7f2",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#faf7f2",
+    "backgroundTextStyle": "dark"
+  }
+}

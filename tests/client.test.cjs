@@ -1,3 +1,4 @@
+const { loadModule, mountPage } = require('./vue-harness.cjs');
 'use strict';
 
 const test = require('node:test');
@@ -23,29 +24,14 @@ function serviceHarness(options = {}) {
     getApp: () => app,
     console: { error() {} }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'miniprogram/utils/service.js'), 'utf8'), context);
+  context.module.exports = loadModule(path.join(root, 'src/utils/service.js'), context, context.require);
   return { service: context.module.exports, calls, pending, app };
 }
 
 function pageHarness(filename, service, wxOverrides = {}) {
-  let definition;
   const toasts = [];
   const wx = { showToast: value => toasts.push(value), stopPullDownRefresh() {}, hideShareMenu() {}, reLaunch() {}, ...wxOverrides };
-  vm.runInNewContext(fs.readFileSync(path.join(root, filename), 'utf8'), {
-    Page: page => { definition = page; }, require: () => service, wx, console,
-  });
-  const page = { ...definition, data: clone(definition.data) };
-  page.setData = patch => {
-    for (const [key, value] of Object.entries(patch)) {
-      const pieces = key.split('.');
-      let target = page.data;
-      for (const part of pieces.slice(0, -1)) {
-        if (!target[part]) target[part] = {};
-        target = target[part];
-      }
-      target[pieces[pieces.length - 1]] = value;
-    }
-  };
+  const page = mountPage(path.join(root, filename), { wx, console }, () => service);
   return { page, toasts };
 }
 
@@ -110,15 +96,15 @@ test('cloud calls await initialization and use the shared environment client', a
 test('refreshing a family group keeps an unsaved profile and its original revision', async () => {
   const newest = group(2, { venue: '家人刚选的新场地' });
   const service = { async call() { return { groups: [] }; }, getGroupId: () => 'wedding-a', async getGroup() { return newest; }, showError() {} };
-  const { page } = pageHarness('miniprogram/pages/group/index.js', service);
+  const { page } = pageHarness('src/pages/group/index.vue', service);
   page.applyGroup(group(1));
   page.profileInput(input('title', '我尚未保存的标题'));
   await page.load();
-  assert.equal(page.data.group.revision, 2);
-  assert.equal(page.data.profile.title, '我尚未保存的标题');
-  assert.equal(page.data.profile.venue, '原场地');
-  assert.equal(page._profileRevision, 1);
-  assert.equal(page._dirty, true);
+  assert.equal(page.state.group.revision, 2);
+  assert.equal(page.state.profile.title, '我尚未保存的标题');
+  assert.equal(page.state.profile.venue, '原场地');
+  assert.equal(page.runtime._profileRevision, 1);
+  assert.equal(page.runtime._dirty, true);
 });
 
 test('declining a conflict reload cannot upgrade a stale profile draft for resubmission', async () => {
@@ -128,7 +114,7 @@ test('declining a conflict reload cannot upgrade a stale profile draft for resub
     async mutate(action, payload, revision) { attempts.push({ action, payload: clone(payload), revision }); throw Object.assign(new Error('其他成员更新了资料'), { code: 'CONFLICT' }); },
     async confirm() { return false; }, async getGroup() { reads += 1; return group(2); }, showError() {}
   };
-  const { page, toasts } = pageHarness('miniprogram/pages/group/index.js', service);
+  const { page, toasts } = pageHarness('src/pages/group/index.vue', service);
   page.applyGroup(group(1));
   page.profileInput(input('title', '我的标题'));
   await page.saveProfile();
@@ -136,8 +122,8 @@ test('declining a conflict reload cannot upgrade a stale profile draft for resub
   assert.equal(reads, 0);
   assert.deepEqual(attempts.map(attempt => attempt.revision), [1, 1]);
   assert.deepEqual(attempts[0].payload.profile, { title: '我的标题' });
-  assert.equal(page.data.profile.title, '我的标题');
-  assert.equal(page._profileRevision, 1);
+  assert.equal(page.state.profile.title, '我的标题');
+  assert.equal(page.runtime._profileRevision, 1);
   assert.equal(toasts.length, 0);
 });
 
@@ -154,30 +140,30 @@ test('accepting a conflict reload replaces the draft before a new edit is saved'
     },
     async confirm() { return true; }, async getGroup() { return newest; }, showError() {}
   };
-  const { page } = pageHarness('miniprogram/pages/group/index.js', service);
+  const { page } = pageHarness('src/pages/group/index.vue', service);
   page.applyGroup(group(1));
   page.profileInput(input('title', '旧草稿'));
   await page.saveProfile();
-  assert.equal(page.data.profile.title, '家人更新的标题');
-  assert.equal(page._profileRevision, 2);
-  assert.equal(page._dirty, false);
+  assert.equal(page.state.profile.title, '家人更新的标题');
+  assert.equal(page.runtime._profileRevision, 2);
+  assert.equal(page.runtime._dirty, false);
   page.profileInput(input('bride', '更新姓名'));
   await page.saveProfile();
   assert.equal(finalPayload.revision, 2);
   assert.deepEqual(finalPayload.payload.profile, { bride: '更新姓名' });
-  assert.equal(page.data.profile.venue, '最新场地');
+  assert.equal(page.state.profile.venue, '最新场地');
 });
 
 test('media upload cannot discard an unsaved wedding profile', async () => {
   let uploads = 0;
   const messages = [];
   const service = { async upload() { uploads += 1; }, showError: error => messages.push(error.message) };
-  const { page } = pageHarness('miniprogram/pages/group/index.js', service);
+  const { page } = pageHarness('src/pages/group/index.vue', service);
   page.applyGroup(group(1));
   page.profileInput(input('title', '尚未保存'));
   await page.uploadMedia('/photo.jpg', 'image', 'photo.jpg');
   assert.equal(uploads, 0);
-  assert.equal(page.data.profile.title, '尚未保存');
+  assert.equal(page.state.profile.title, '尚未保存');
   assert.ok(messages[0].includes('先保存'));
 });
 
@@ -189,10 +175,10 @@ test('declining an invitation does not require the hidden party-size input', asy
     async call(action, payload) { submissions.push({ action, payload: clone(payload) }); return { invitation }; },
     showError: error => errors.push(error.message)
   };
-  const { page } = pageHarness('miniprogram/pages/invitation/index.js', service);
-  page.token = 'a'.repeat(64);
+  const { page } = pageHarness('src/pages/invitation/index.vue', service);
+  page.runtime.token = 'a'.repeat(64);
   page.applyInvitation({ ...invitation, guest: { ...invitation.guest, attendance: 'pending', partySize: 2 } });
-  page.setData({ attendance: 'no', partySize: '', needsLodging: true });
+  Object.assign(page.state, { attendance: 'no', partySize: '', needsLodging: true });
   await page.submit();
   assert.equal(submissions.length, 1, errors.join('; '));
   assert.equal(submissions[0].action, 'invitations.respond');
@@ -200,7 +186,7 @@ test('declining an invitation does not require the hidden party-size input', asy
   assert.equal(submissions[0].payload.response.needsLodging, false);
   assert.ok(Number.isInteger(submissions[0].payload.response.partySize));
   assert.ok(submissions[0].payload.response.partySize >= 1);
-  assert.equal(page.data.submitted, true);
+  assert.equal(page.state.submitted, true);
 });
 
 test('a removed member loses the previously rendered group and unsaved private draft', async () => {
@@ -211,31 +197,31 @@ test('a removed member loses the previously rendered group and unsaved private d
     async getGroup() { const error = new Error('Access revoked'); error.code = 'FORBIDDEN'; throw error; },
     setGroup(value) { cleared = value === null; }
   };
-  const { page } = pageHarness('miniprogram/pages/group/index.js', service);
+  const { page } = pageHarness('src/pages/group/index.vue', service);
   page.applyGroup(group(1));
   page.profileInput(input('title', 'Private unsaved title'));
   await page.load();
   assert.equal(cleared, true);
-  assert.equal(page.data.group, null);
-  assert.equal(page.data.profile.title, '');
-  assert.equal(page.data.coverUrl, '');
-  assert.equal(page._dirty, false);
-  assert.ok(page.data.error);
+  assert.equal(page.state.group, null);
+  assert.equal(page.state.profile.title, '');
+  assert.equal(page.state.coverUrl, '');
+  assert.equal(page.runtime._dirty, false);
+  assert.ok(page.state.error);
 });
 
 test('failed RSVP submission keeps user input and never reports success', async () => {
   const errors = [];
   const service = { async call() { throw new Error('网络暂不可用'); }, showError: error => errors.push(error.message) };
-  const { page, toasts } = pageHarness('miniprogram/pages/invitation/index.js', service);
-  page.token = 'b'.repeat(64);
+  const { page, toasts } = pageHarness('src/pages/invitation/index.vue', service);
+  page.runtime.token = 'b'.repeat(64);
   page.applyInvitation({ profile: group(1).profile, guest: { name: 'Guest', attendance: 'pending', partySize: 1, needsLodging: false, note: '' }, tableName: '', coverUrl: '', musicUrl: '' });
-  page.setData({ attendance: 'yes', partySize: '3', needsLodging: true, note: '请安排一间房' });
+  Object.assign(page.state, { attendance: 'yes', partySize: '3', needsLodging: true, note: '请安排一间房' });
   await page.submit();
-  assert.equal(page.data.partySize, '3');
-  assert.equal(page.data.note, '请安排一间房');
-  assert.equal(page.data.needsLodging, true);
-  assert.equal(page.data.busy, false);
-  assert.equal(page.data.submitted, false);
+  assert.equal(page.state.partySize, '3');
+  assert.equal(page.state.note, '请安排一间房');
+  assert.equal(page.state.needsLodging, true);
+  assert.equal(page.state.busy, false);
+  assert.equal(page.state.submitted, false);
   assert.equal(toasts.length, 0);
   assert.equal(errors.length, 1);
 });

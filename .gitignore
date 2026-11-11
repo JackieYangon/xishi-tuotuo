@@ -17,8 +17,6 @@ Thumbs.db
 !.env.example
 project.config.json
 project.private.config.json
-miniprogram/config.local.js
-miniprogram/version.js
 cloudfunctions/xishiTuotuoApi/local-config.json
 
 # Credentials, exported personal data, and verification artifacts
@@ -30,3 +28,9 @@ exports/
 screenshots/
 test-results/
 playwright-report/
+
+# Vue build configuration and local output
+src/config.local.json
+src/version.json
+src/manifest.json
+unpackage/

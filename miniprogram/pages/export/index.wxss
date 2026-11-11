@@ -1,7 +1,0 @@
-.export-heading { font-size: 32rpx; font-weight: 600; }
-.export-switch { margin: 26rpx 0; }
-.export-switch switch { flex-shrink: 0; transform: scale(.85); transform-origin: right center; }
-.export-result-title { margin: 16rpx 0 8rpx; }
-.export-filename { color: #8a7771; overflow-wrap: anywhere; margin-top: 18rpx; }
-.export-footnote { margin-top: 22rpx; }
-.export-start { margin-top: 28rpx; }

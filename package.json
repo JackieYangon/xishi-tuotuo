@@ -1,13 +1,35 @@
 {
   "name": "xishi-tuotuo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "喜事妥妥 · 一家人一起筹备婚礼",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "setup": "node scripts/prepare-local-config.cjs",
-    "check": "node scripts/check.cjs",
-    "test": "node --test tests/*.test.cjs"
+    "check": "node scripts/check.cjs && node scripts/sync-readme-badges.cjs --check",
+    "test": "node --test tests/*.test.cjs",
+    "dev:mp-weixin": "node scripts/prepare-local-config.cjs --dev && uni -p mp-weixin",
+    "build:mp-weixin": "npm run setup && uni build -p mp-weixin",
+    "type-check": "vue-tsc --noEmit",
+    "docs:badges": "node scripts/sync-readme-badges.cjs"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-5030420261029002",
+    "@dcloudio/uni-components": "3.0.0-5030420261029002",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5030420261029002",
+    "vue": "3.4.21"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/uni-cli-shared": "3.0.0-5030420261029002",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5030420261029002",
+    "@vue/compiler-sfc": "3.4.21",
+    "typescript": "5.7.3",
+    "vite": "5.2.8",
+    "vue-tsc": "2.2.0",
+    "miniprogram-api-typings": "4.1.0"
   }
 }

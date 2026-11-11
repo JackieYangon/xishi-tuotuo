@@ -1,3 +1,4 @@
+const { loadModule, mountPage } = require('./vue-harness.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -35,13 +36,8 @@ function createPage(group = fixture(), customMutation) {
       return { group };
     }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../miniprogram/pages/seating/index.js'), 'utf8'), {
-    require: () => service,
-    Page: value => { definition = value; },
-    wx: { showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {}, navigateTo() {} }
-  });
-  const page = { ...definition, data: JSON.parse(JSON.stringify(definition.data)), _group: group, _revision: group.revision };
-  page.setData = function (patch) { Object.assign(this.data, patch); };
+  const page = mountPage(path.join(__dirname, '../src/pages/seating/index.vue'), { wx: { showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {}, navigateTo() {} } }, () => service);
+  page.runtime._group = group; page.runtime._revision = group.revision;
   page.render();
   return { page, calls, group };
 }
@@ -51,7 +47,7 @@ function event(dataset = {}) { return { currentTarget: { dataset } }; }
 test('round-table layout creates one bounded seat per capacity and respects party sizes', () => {
   for (const capacity of [3, 10, 12, 30]) {
     const { page } = createPage(fixture(capacity));
-    const table = page.data.tables[0];
+    const table = page.state.tables[0];
     assert.equal(table.seats.length, capacity);
     assert.equal(table.seats.filter(seat => seat.filled).length, 3);
     assert.equal(table.count, 3);
@@ -67,11 +63,11 @@ test('round-table layout creates one bounded seat per capacity and respects part
 
 test('only eligible unseated guests contribute to waiting counts', () => {
   const { page } = createPage();
-  assert.equal(page.data.waitingCount, 8);
-  assert.equal(page.data.assignedCount, 3);
-  assert.equal(page.data.waiting.length, 1);
+  assert.equal(page.state.waitingCount, 8);
+  assert.equal(page.state.assignedCount, 3);
+  assert.equal(page.state.waiting.length, 1);
   page.openAssignment(event({ table: 'table-a' }));
-  assert.equal(page.data.guestOptions.some(guest => guest.id === 'guest-c'), false);
+  assert.equal(page.state.guestOptions.some(guest => guest.id === 'guest-c'), false);
 });
 
 test('table capacity supports presets and custom values while preventing shrink overflow', async () => {
@@ -85,7 +81,7 @@ test('table capacity supports presets and custom values while preventing shrink 
   page.editCustomCapacity({ detail: { value: '31' } });
   await page.saveTable();
   assert.equal(calls.length, 1);
-  assert.ok(page.data.tableError);
+  assert.ok(page.state.tableError);
   page.editCustomCapacity({ detail: { value: '2' } });
   await page.saveTable();
   assert.equal(calls.length, 1);
@@ -97,7 +93,7 @@ test('table capacity supports presets and custom values while preventing shrink 
 test('over-capacity groups cannot be seated and no mutation is submitted', async () => {
   const { page, calls } = createPage();
   page.openAssignment(event({ guest: 'guest-b', table: 'table-a' }));
-  assert.equal(page.data.canAssign, false);
+  assert.equal(page.state.canAssign, false);
   await page.assign();
   assert.equal(calls.length, 0);
   page.openAssignment(event({ guest: 'guest-c', table: 'table-b' }));
@@ -108,16 +104,16 @@ test('over-capacity groups cannot be seated and no mutation is submitted', async
 test('moving a guest sends only editable fields and keeps the group together', async () => {
   const { page, calls } = createPage();
   page.openAssignment(event({ guest: 'guest-a', table: 'table-b' }));
-  assert.equal(page.data.canAssign, true);
+  assert.equal(page.state.canAssign, true);
   await page.assign();
   const record = calls[0].payload.record;
   assert.equal(record.tableId, 'table-b');
   assert.equal(record.partySize, 3);
   assert.equal('invitationToken' in record, false);
   assert.equal('replyNote' in record, false);
-  assert.equal(page.data.tables[0].count, 0);
-  assert.equal(page.data.tables[1].count, 3);
-  assert.equal(page.data.assignmentOpen, false);
+  assert.equal(page.state.tables[0].count, 0);
+  assert.equal(page.state.tables[1].count, 3);
+  assert.equal(page.state.assignmentOpen, false);
 });
 
 test('duplicate save clicks share one in-flight mutation', async () => {
@@ -129,7 +125,7 @@ test('duplicate save clicks share one in-flight mutation', async () => {
   assert.equal(calls.length, 1);
   complete({ group });
   await pending;
-  assert.equal(page.data.saving, false);
+  assert.equal(page.state.saving, false);
 });
 
 test('revision conflicts preserve the table draft and refresh group data', async () => {
@@ -137,11 +133,11 @@ test('revision conflicts preserve the table draft and refresh group data', async
   page.openTable(event());
   page.editTableName({ detail: { value: 'My table draft' } });
   await page.saveTable();
-  assert.equal(page.data.tableEditor, true);
-  assert.equal(page.data.tableName, 'My table draft');
-  assert.ok(page.data.tableError);
-  assert.equal(page.data.saving, false);
-  assert.equal(page.data.tableConflict, true);
+  assert.equal(page.state.tableEditor, true);
+  assert.equal(page.state.tableName, 'My table draft');
+  assert.ok(page.state.tableError);
+  assert.equal(page.state.saving, false);
+  assert.equal(page.state.tableConflict, true);
   await page.saveTable();
   assert.equal(calls.length, 1);
   assert.equal(calls[0].expectedRevision, 1);
@@ -159,12 +155,12 @@ test('reloading list data does not promote an open table draft revision', async 
   await page.load();
   await page.saveTable();
   assert.equal(calls[0].expectedRevision, 1);
-  assert.equal(page.data.tableName, 'Unsaved table name');
+  assert.equal(page.state.tableName, 'Unsaved table name');
   await page.saveTable();
   assert.equal(calls.length, 1);
   await page.reloadDraft(event({ kind: 'table' }));
-  assert.equal(page.data.tableName, 'Updated by family');
-  assert.equal(page.data.tableConflict, false);
+  assert.equal(page.state.tableName, 'Updated by family');
+  assert.equal(page.state.tableConflict, false);
   await page.saveTable();
   assert.equal(calls[1].expectedRevision, 2);
 });
@@ -179,13 +175,13 @@ test('assignment conflicts require explicit reload before another write', async 
   await page.load();
   await page.assign();
   assert.equal(calls[0].expectedRevision, 1);
-  assert.equal(page.data.assignmentConflict, true);
+  assert.equal(page.state.assignmentConflict, true);
   await page.assign();
   assert.equal(calls.length, 1);
   await page.reloadDraft(event({ kind: 'assignment' }));
-  assert.equal(page.data.assignmentConflict, false);
-  assert.equal(page.data.assignGuestId, '');
-  assert.equal(page.data.assignTableId, '');
+  assert.equal(page.state.assignmentConflict, false);
+  assert.equal(page.state.assignGuestId, '');
+  assert.equal(page.state.assignTableId, '');
   page.openAssignment(event({ guest: 'guest-a', table: 'table-b' }));
   await page.assign();
   assert.equal(calls[1].expectedRevision, 2);

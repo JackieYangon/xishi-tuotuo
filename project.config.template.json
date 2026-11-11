@@ -1,7 +1,7 @@
 {
   "description": "喜事妥妥微信小程序",
   "projectname": "xishi-tuotuo",
-  "miniprogramRoot": "miniprogram/",
+  "miniprogramRoot": "dist/build/mp-weixin/",
   "cloudfunctionRoot": "cloudfunctions/",
   "compileType": "miniprogram",
   "appid": "touristappid",
