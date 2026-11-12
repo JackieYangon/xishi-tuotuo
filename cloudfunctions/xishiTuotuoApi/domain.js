@@ -63,6 +63,8 @@ function revision(group, expected) {
 }
 function privateGroup(group, userId) {
   const result = clone(group);
+  result.profile = cleanProfile(result.profile);
+  result.guests.forEach(guest => { delete guest.replyNote; });
   delete result._id;
   delete result.invitations;
   delete result.invitationHashes;
@@ -72,10 +74,14 @@ function privateGroup(group, userId) {
   result.members = result.members.map(entry => ({ ...entry, accountLabel: hash(group.id + ':' + entry.id).slice(0, 8).toUpperCase() }));
   return result;
 }
-function profile(input, existing, media) {
+function cleanProfile(source) {
+  const keys = ['title', 'bride', 'groom', 'date', 'venue', 'address', 'latitude', 'longitude'];
+  return Object.fromEntries(keys.filter(key => source[key] !== undefined).map(key => [key, source[key]]));
+}
+function profile(input, existing) {
   object(input);
-  const next = Object.assign({}, existing);
-  const stringFields = { title: 60, bride: 30, groom: 30, venue: 100, address: 200, invitationText: 2000 };
+  const next = cleanProfile(existing);
+  const stringFields = { title: 60, bride: 30, groom: 30, venue: 100, address: 200 };
   Object.entries(stringFields).forEach(([key, max]) => { if (input[key] !== undefined) next[key] = text(input[key], key === 'title' ? '婚礼名称' : '婚礼资料', max); });
   if (!next.title) next.title = '我们的婚礼';
   if (input.date !== undefined) next.date = date(input.date, '婚礼日期');
@@ -83,14 +89,6 @@ function profile(input, existing, media) {
     if (input[key] !== undefined) next[key] = input[key] === '' || input[key] === null ? null : number(input[key], '地图坐标', key === 'latitude' ? -90 : -180, key === 'latitude' ? 90 : 180);
   });
   if ((next.latitude === null) !== (next.longitude === null)) fail('INVALID_INPUT', '请同时设置完整地图坐标');
-  if (input.theme !== undefined) next.theme = choice(input.theme, ['rose', 'ivory', 'red'], 'rose', '请柬主题');
-  for (const [key, kind] of [['coverFileID', 'image'], ['musicFileID', 'audio']]) {
-    if (input[key] !== undefined) {
-      const fileID = text(input[key], '媒体文件', 500);
-      if (fileID && !media.some(file => file.fileID === fileID && file.kind === kind)) fail('FORBIDDEN', '只能使用本群组上传的媒体');
-      next[key] = fileID;
-    }
-  }
   return next;
 }
 function assignee(value, group) {
@@ -144,7 +142,7 @@ function checkSeating(group, guest, autoUnseat = false) {
 }
 function defaultTasks(now, weddingDate, randomId) {
   const tasks = [
-    ['确认婚期与婚礼场地', 180], ['整理双方宾客名单', 120], ['联系婚庆、摄影与化妆团队', 90], ['确认婚纱礼服与试妆', 60], ['准备喜糖、酒水和伴手礼', 30], ['制作并发送电子请柬', 30], ['确认宾客出席和住宿', 14], ['安排婚宴桌位', 7], ['确认婚礼当天流程与负责人', 7], ['检查婚礼当天携带物品', 1]
+    ['确认婚期与婚礼场地', 180], ['整理双方宾客名单', 120], ['联系婚庆、摄影与化妆团队', 90], ['确认婚纱礼服与试妆', 60], ['准备喜糖、酒水和伴手礼', 30], ['确认宾客出席和住宿', 14], ['安排婚宴桌位', 7], ['确认婚礼当天流程与负责人', 7], ['检查婚礼当天携带物品', 1]
   ];
   return tasks.map(([title, before]) => ({ id: randomId(), title, dueDate: weddingDate ? new Date(Date.parse(`${weddingDate}T12:00:00Z`) - before * DAY).toISOString().slice(0, 10) : '', assigneeId: '', done: false, note: '' }));
 }
@@ -170,32 +168,16 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
       revision(group, payload.revision);
       if (ownerOnly && group.ownerId !== userId) fail('FORBIDDEN', '仅群主可以进行此操作');
       const extra = await change(group) || {};
+      delete group.invitations;
+      delete group.invitationHashes;
+      group.profile = cleanProfile(group.profile);
+      group.guests.forEach(guest => { delete guest.replyNote; });
       group.memberIds = group.members.map(entry => entry.id);
       group.revision += 1;
       group.updatedAt = now();
       assertSize(group);
       return { group, result: Object.assign({ group: privateGroup(group, userId) }, extra) };
     });
-  }
-  async function invitationFor(group, invite, warning = '') {
-    const guest = group.guests.find(entry => entry.id === invite.guestId);
-    if (!guest || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
-    const table = group.tables.find(entry => entry.id === guest.tableId);
-    const publicProfile = clone(group.profile);
-    const fileIDs = [publicProfile.coverFileID, publicProfile.musicFileID].filter(value => value && group.media.some(media => media.fileID === value));
-    const urls = storage && fileIDs.length ? await storage.urls(fileIDs) : {};
-    delete publicProfile.coverFileID;
-    delete publicProfile.musicFileID;
-    return { profile: publicProfile, coverUrl: urls[group.profile.coverFileID] || '', musicUrl: urls[group.profile.musicFileID] || '', guest: { name: guest.name, attendance: guest.attendance, partySize: guest.partySize, needsLodging: guest.needsLodging, note: guest.replyNote || '' }, tableName: table ? table.name : '', warning };
-  }
-  async function findInvitation(token) {
-    token = text(token, '请柬链接', 64, true);
-    if (!/^[a-f0-9]{64}$/.test(token)) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
-    const tokenHash = hash(token);
-    const group = await repo.findByInvitationHash(tokenHash);
-    const invite = group && !group.status && group.invitations.find(entry => entry.tokenHash === tokenHash);
-    if (!invite || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
-    return { group, invite, tokenHash };
   }
   return async function service(event, identity) {
     try {
@@ -223,14 +205,14 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
           // Keep only a cleanup/idempotency marker; erase all wedding and guest data atomically.
           const marker = { id: groupId, ownerId: userId, status: 'deleting', revision: group.revision + 1,
             profile: { title: '已删除的婚礼' }, members: [], memberIds: [userId],
-            media: group.media || [], invitations: [], invitationHashes: [], joinCode: '', deletedAt: now() };
+            media: group.media || [], joinCode: '', deletedAt: now() };
           return { group: marker, result: marker.media };
         });
         // Bounded parallel cleanup avoids exceeding the function time budget. Failed entries remain retryable.
         const removed = [];
         await Promise.all(pending.map(async file => {
           const prefix = `${STORAGE_PREFIX}${groupId}/`;
-          if (!storage || !file.cloudPath || !file.cloudPath.startsWith(prefix) || file.cloudPath.slice(prefix.length).includes('/') || !file.fileID.startsWith('cloud://') || !file.fileID.endsWith('/' + file.cloudPath)) return;
+          if (!storage || !file.cloudPath || !file.cloudPath.startsWith(prefix) || file.cloudPath.slice(prefix.length).includes('/') || typeof file.fileID !== 'string' || !file.fileID.startsWith('cloud://') || !file.fileID.endsWith('/' + file.cloudPath)) return;
           try {
             await storage.remove(file.fileID);
             removed.push(file.fileID);
@@ -250,8 +232,8 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         const stamp = now();
         const group = {
           id: randomId(), revision: 1, ownerId: userId, joinCode: random(6).toUpperCase(), joinCodeExpiresAt: stamp + 7 * DAY,
-          profile: profile(payload.profile || {}, { title: '我们的婚礼', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null, coverFileID: '', musicFileID: '', invitationText: '诚邀您见证我们的幸福时刻。', theme: 'rose' }, []),
-          members: [{ id: userId, nickname, role }], memberIds: [userId], media: [], invitations: [], invitationHashes: [],
+          profile: profile(payload.profile || {}, { title: '我们的婚礼', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null }),
+          members: [{ id: userId, nickname, role }], memberIds: [userId], media: [],
           tasks: [], items: [], vendors: [], guests: [], tables: [], timeline: [], lodgings: [], createdAt: stamp, updatedAt: stamp
         };
         group.tasks = defaultTasks(stamp, group.profile.date, randomId);
@@ -279,7 +261,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
       } else if (event.action === 'groups.get' || event.action === 'media.urls') {
         const group = await repo.get(id(payload.groupId, '群组标识'));
         member(group, userId);
-        const visibleFiles = [group.profile.coverFileID, group.profile.musicFileID, ...group.members.map(entry => entry.avatarFileID)];
+        const visibleFiles = group.members.map(entry => entry.avatarFileID);
         const fileIDs = [...new Set(visibleFiles.filter(fileID => fileID && group.media.some(file => file.fileID === fileID)))];
         data = event.action === 'groups.get' ? { group: privateGroup(group, userId) } : { urls: storage ? await storage.urls(fileIDs) : {} };
       } else if (event.action === 'members.login') {
@@ -336,7 +318,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         }
         await cleanupAvatar(groupId, oldAvatar);
       } else if (event.action === 'groups.profile') {
-        data = await mutate(payload, userId, group => { group.profile = profile(payload.profile, group.profile, group.media); });
+        data = await mutate(payload, userId, group => { group.profile = profile(payload.profile, group.profile); });
       } else if (event.action === 'groups.rotateCode') {
         data = await mutate(payload, userId, group => { group.joinCode = random(6).toUpperCase(); group.joinCodeExpiresAt = now() + 7 * DAY; }, true);
       } else if (event.action === 'groups.removeMember') {
@@ -363,7 +345,6 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
           const next = record(type, input, group, existing ? existing.id : randomId());
           let warning = '';
           if (type === 'guests') {
-            if (existing && existing.replyNote) next.replyNote = existing.replyNote;
             warning = checkSeating(group, next, Boolean(existing && existing.tableId === next.tableId));
           }
           if (type === 'tables') {
@@ -383,76 +364,8 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
           if (type === 'tables') group.guests.forEach(guest => { if (guest.tableId === recordId) guest.tableId = ''; });
           if (type === 'guests') {
             group.lodgings.forEach(room => { room.guestIds = room.guestIds.filter(guestId => guestId !== recordId); });
-            group.invitations = group.invitations.filter(invite => invite.guestId !== recordId);
-            group.invitationHashes = group.invitations.map(invite => invite.tokenHash);
           }
         });
-      } else if (event.action === 'invitations.issue') {
-        data = await mutate(payload, userId, group => {
-          const guestId = id(payload.guestId, '宾客标识');
-          if (!group.guests.some(guest => guest.id === guestId)) fail('NOT_FOUND', '宾客已删除');
-          let invite = group.invitations.find(entry => entry.guestId === guestId && entry.expiresAt > now());
-          if (!invite) {
-            const token = random(32);
-            invite = { guestId, token, tokenHash: hash(token), expiresAt: now() + 366 * DAY };
-            group.invitations = group.invitations.filter(entry => entry.guestId !== guestId);
-            group.invitations.push(invite);
-            group.invitationHashes = group.invitations.map(entry => entry.tokenHash);
-          }
-          return { token: invite.token };
-        });
-      } else if (event.action === 'invitations.get') {
-        const found = await findInvitation(payload.token);
-        data = { invitation: await invitationFor(found.group, found.invite) };
-      } else if (event.action === 'invitations.respond') {
-        const found = await findInvitation(payload.token);
-        const response = object(payload.response);
-        const result = await repo.transact(found.group.id, async group => {
-          const invite = group && group.invitations.find(entry => entry.tokenHash === found.tokenHash);
-          if (!invite || invite.expiresAt < now()) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
-          const guest = group.guests.find(entry => entry.id === invite.guestId);
-          if (!guest) fail('INVITATION_EXPIRED', '此请柬已失效，请联系新人重新发送');
-          guest.attendance = choice(response.attendance, ['yes', 'no'], '', '出席状态');
-          guest.partySize = number(response.partySize, '出席人数', 1, 30, true, 1);
-          guest.needsLodging = bool(response.needsLodging);
-          guest.replyNote = text(response.note, '回执留言', 500);
-          const warning = checkSeating(group, guest, true);
-          group.revision += 1;
-          group.updatedAt = now();
-          assertSize(group);
-          return { group, result: { group, invite, warning } };
-        });
-        data = { invitation: await invitationFor(result.group, result.invite, result.warning) };
-      } else if (event.action === 'media.upload') {
-        const group = await repo.get(id(payload.groupId, '群组标识'));
-        member(group, userId);
-        revision(group, payload.revision);
-        if (!storage) fail('UNAVAILABLE', '文件服务暂不可用');
-        if (group.media.filter(file => file.kind !== 'avatar').length >= 30) fail('LIMIT_REACHED', '本群组最多上传 30 个请柬媒体文件');
-        const kind = choice(payload.kind, ['image', 'audio'], '', '媒体类型');
-        if (typeof payload.base64 !== 'string' || payload.base64.length > 2800000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.base64)) fail('INVALID_INPUT', '文件格式无效或超过 2 MB');
-        const bytes = Buffer.from(payload.base64, 'base64');
-        if (!bytes.length || bytes.length > 2 * 1024 * 1024) fail('INVALID_INPUT', '文件必须小于 2 MB');
-        const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-        const png = bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-        const mp3 = bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
-        if (kind === 'image' ? !(jpeg || png) : !mp3) fail('INVALID_INPUT', kind === 'image' ? '请上传 JPG 或 PNG 图片' : '请上传 MP3 音乐');
-        const cloudPath = `${STORAGE_PREFIX}${group.id}/${randomId()}.${kind === 'audio' ? 'mp3' : png ? 'png' : 'jpg'}`;
-        const fileID = await storage.upload(cloudPath, bytes);
-        try {
-          data = await mutate(payload, userId, current => { current.media.push({ fileID, kind, cloudPath }); return { fileID }; });
-        } catch (error) {
-          try { await storage.remove(fileID); }
-          catch (_) {
-            // A concurrent deletion must not lose an upload that finished after its snapshot.
-            await repo.transact(group.id, async current => {
-              if (!current.media.some(file => file.fileID === fileID)) current.media.push({ fileID, kind, cloudPath });
-              if (current.status) { current.status = 'deleting'; current.memberIds = [current.ownerId]; }
-              return { group: current, result: null };
-            });
-          }
-          throw error;
-        }
       } else fail('INVALID_ACTION', '不支持此操作，请更新小程序');
       return { ok: true, data };
     } catch (error) {

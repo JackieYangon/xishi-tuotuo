@@ -129,7 +129,7 @@ test('privacy fields require explicit opt-in and a category produces only the re
   const sheets = buildSheets(fixture(), { category: 'guests', includePhones: true, includeNotes: true });
   assert.equal(sheets.length, 1); assert.equal(sheets[0].name, '宾客名单');
   const data = JSON.stringify(sheets);
-  assert.match(data, /13900002222/); assert.match(data, /宾客私人说明/); assert.match(data, /亲友私人留言/);
+  assert.match(data, /13900002222/); assert.match(data, /宾客私人说明/); assert.doesNotMatch(data, /亲友私人留言|回执留言/);
   assert.ok(!data.includes('private-openid'));
   assert.ok(!JSON.stringify(buildSheets(fixture(), { includePhones: 'true', includeNotes: 1 })).includes('13900002222'));
 });

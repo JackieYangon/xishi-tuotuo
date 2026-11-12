@@ -75,7 +75,7 @@ const json = (value) => JSON.stringify(value, null, 2) + '\n'
 const generated = '// Generated locally by scripts/prepare-local-config.cjs. Do not commit.\n'
 const writes = [
   ['project.config.json', json(project)],
-  ['src/manifest.json', json({ name: '喜事妥妥', appid: '', versionName: version, versionCode, uniStatistics: { enable: false }, vueVersion: '3', 'mp-weixin': { appid, setting: { urlCheck: true }, usingComponents: true, permission: { 'scope.userLocation': { desc: '用于选择婚礼场地，方便亲友导航赴宴' } }, requiredPrivateInfos: ['chooseLocation'], lazyCodeLoading: 'requiredComponents' } })],
+  ['src/manifest.json', json({ name: '喜事妥妥', appid: '', versionName: version, versionCode, uniStatistics: { enable: false }, vueVersion: '3', 'mp-weixin': { appid, setting: { urlCheck: true }, usingComponents: true, permission: { 'scope.userLocation': { desc: '用于在婚礼资料中选择场地位置' } }, requiredPrivateInfos: ['chooseLocation'], lazyCodeLoading: 'requiredComponents' } })],
   ['src/config.local.json', json({ envId, resourceAppid, functionName: 'xishiTuotuoApi' })],
   ['cloudfunctions/xishiTuotuoApi/local-config.json', json({ allowedAppId: example ? '' : appid })],
   ['src/version.json', json({ version, versionCode })],

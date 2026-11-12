@@ -11,7 +11,6 @@ class MemoryRepo {
   async get(id) { return copy(this.groups.get(id)) || null; }
   async listForMember(id) { return [...this.groups.values()].filter(group => group.memberIds.includes(id)).map(copy); }
   async findByJoinCode(code) { return copy([...this.groups.values()].find(group => group.joinCode === code)) || null; }
-  async findByInvitationHash(hash) { return copy([...this.groups.values()].find(group => group.invitationHashes.includes(hash))) || null; }
   async create(group) { assert.ok(!this.groups.has(group.id)); this.groups.set(group.id, copy(group)); }
   transact(id, change) {
     const task = this.queue.then(async () => {
@@ -79,7 +78,6 @@ test('avatars are self-owned, replace atomically, and are cleaned with the group
   const secondFile = second.group.members.find(m => m.id === 'dad').avatarFileID;
   assert.notEqual(firstFile, secondFile); assert.ok(env.deletedFiles.includes(firstFile));
   assert.equal((await env.repo.get(group.id)).media.length, 1);
-  assert.equal((await env.call('groups.profile', { groupId: group.id, revision: second.group.revision, profile: { coverFileID: secondFile } })).error.code, 'FORBIDDEN');
   const deleted = await env.ok('groups.delete', { groupId: group.id, revision: second.group.revision, confirmTitle: group.profile.title });
   assert.equal(deleted.cleanupPending, false); assert.ok(env.deletedFiles.includes(secondFile));
 });
@@ -120,8 +118,6 @@ test('only the owner can delete, with a current revision and exact title confirm
 test('deleting a group erases personal data, revokes invites and leaves other groups untouched', async () => {
   const env = setup(); let group = await env.create(); const other = await env.create('other');
   group = await env.save(group, 'guests', { name: 'Private guest', partySize: 2 });
-  const issued = await env.ok('invitations.issue', { groupId: group.id, revision: group.revision, guestId: group.guests[0].id });
-  group = issued.group;
   const originalCode = group.joinCode;
   const outcome = await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
   assert.equal(outcome.cleanupPending, false);
@@ -133,7 +129,6 @@ test('deleting a group erases personal data, revokes invites and leaves other gr
   assert.ok(!JSON.stringify(marker).includes('一起办婚礼'));
   assert.equal((await env.call('groups.get', { groupId: group.id })).error.code, 'GROUP_DELETED');
   assert.equal((await env.call('groups.join', { code: originalCode, nickname: '家人' }, 'dad')).error.code, 'INVALID_CODE');
-  assert.equal((await env.call('invitations.respond', { token: issued.token, response: {} }, 'visitor')).error.code, 'INVITATION_EXPIRED');
   assert.equal((await env.call('records.save', { groupId: group.id, revision: group.revision, type: 'tasks', record: { title: 'late' } })).error.code, 'GROUP_DELETED');
   assert.deepEqual((await env.ok('groups.list')).groups, []);
   assert.equal((await env.ok('groups.delete', { groupId: group.id })).deleted, true);
@@ -143,8 +138,11 @@ test('deleting a group erases personal data, revokes invites and leaves other gr
 
 test('media cleanup failures remain owner-retryable and never target another namespace', async () => {
   const env = setup(); let group = await env.create();
-  const upload = await env.ok('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: Buffer.from([255,216,255,1]).toString('base64') });
-  group = upload.group;
+  const legacyPath = STORAGE_PREFIX + group.id + '/legacy.jpg';
+  const upload = { fileID: 'cloud://test/' + legacyPath };
+  const legacy = await env.repo.get(group.id);
+  legacy.media.push({ fileID: upload.fileID, cloudPath: legacyPath, kind: 'image' });
+  env.repo.groups.set(group.id, legacy);
   const remove = env.storage.remove;
   env.storage.remove = async () => { throw new Error('storage unavailable'); };
   const first = await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
@@ -168,7 +166,7 @@ test('an upload racing deletion cannot resurrect the group and failed rollback r
   let finish; let started;
   const uploading = new Promise(resolve => { started = resolve; });
   env.storage.upload = async path => { started(); return new Promise(resolve => { finish = () => resolve('cloud://test/' + path); }); };
-  const request = env.call('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: Buffer.from([255,216,255,1]).toString('base64') });
+  const request = env.call('members.update', { groupId: group.id, revision: group.revision, memberId: 'owner', nickname: '新人', role: '新郎', avatarBase64: Buffer.from([255,216,255,1]).toString('base64') });
   await uploading;
   await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title });
   env.storage.remove = async () => { throw new Error('temporary'); };
@@ -195,7 +193,7 @@ test('namespace is isolated and app identity is enforced even for public invitat
 test('new groups have shared task defaults and omit internal capabilities', async () => {
   const env = setup();
   const group = await env.create();
-  assert.equal(group.tasks.length, 10);
+  assert.equal(group.tasks.length, 9);
   assert.equal(group.selfId, 'owner');
   assert.equal(group.tasks.filter(task => task.done).length, 0);
   assert.match(group.joinCode, /^[A-F0-9]{12}$/);
@@ -226,7 +224,7 @@ test('shared environments use the complete FROM identity and reject owner fallba
 test('cross-group reads, writes and uploads cannot impersonate members', async () => {
   const env = setup();
   const group = await env.create();
-  for (const action of ['groups.get', 'groups.profile', 'records.save', 'media.urls', 'media.upload']) {
+  for (const action of ['groups.get', 'groups.profile', 'records.save', 'media.urls', 'members.update']) {
     const result = await env.call(action, { groupId: group.id, revision: 1, userId: 'owner', ownerId: 'stranger', type: 'tables', record: { name: '主桌', capacity: 10 }, profile: { title: '篡改' } }, 'stranger');
     assert.equal(result.error.code, 'FORBIDDEN', action);
   }
@@ -278,43 +276,7 @@ test('table capacity validates party sizes and custom capacities', async () => {
   assert.equal(group.tables[1].capacity, 7);
 });
 
-test('invitees see only their invitation; private notes and phone stay private', async () => {
-  const env = setup();
-  let group = await env.create();
-  group = await env.save(group, 'guests', { name: '王阿姨', partySize: 2, phone: '13800000000', note: '仅家人可见的内部备注' });
-  group = await env.save(group, 'guests', { name: '其他宾客', partySize: 1, phone: '13900000000' });
-  const issued = await env.ok('invitations.issue', { groupId: group.id, revision: group.revision, guestId: group.guests[0].id });
-  assert.match(issued.token, /^[a-f0-9]{64}$/);
-  const publicData = (await env.ok('invitations.get', { token: issued.token }, 'guest')).invitation;
-  assert.equal(publicData.guest.name, '王阿姨');
-  assert.equal(publicData.guest.note, '');
-  const serialized = JSON.stringify(publicData);
-  for (const privateValue of ['13800000000', '13900000000', '其他宾客', '仅家人可见', 'joinCode', 'ownerId', 'members']) assert.equal(serialized.includes(privateValue), false);
-  const again = await env.ok('invitations.issue', { groupId: group.id, revision: issued.group.revision, guestId: group.guests[0].id });
-  assert.equal(again.token, issued.token);
-  assert.equal((await env.call('invitations.get', { token: 'f'.repeat(64) }, 'guest')).error.code, 'INVITATION_EXPIRED');
-});
-
-test('RSVP updates only its guest, and unseats safely when a party grows', async () => {
-  const env = setup();
-  let group = await env.create();
-  group = await env.save(group, 'tables', { name: '圆桌', capacity: 10 });
-  group = await env.save(group, 'guests', { name: '第一家', partySize: 8, attendance: 'yes', tableId: group.tables[0].id, note: '内部备注' });
-  group = await env.save(group, 'guests', { name: '第二家', partySize: 2, attendance: 'yes', tableId: group.tables[0].id });
-  const issued = await env.ok('invitations.issue', { groupId: group.id, revision: group.revision, guestId: group.guests[1].id });
-  const reply = await env.ok('invitations.respond', { token: issued.token, response: { attendance: 'yes', partySize: 3, needsLodging: true, note: '需要一间房', name: '篡改姓名', guestId: group.guests[0].id } }, 'visitor');
-  assert.equal(reply.invitation.guest.name, '第二家');
-  assert.equal(reply.invitation.tableName, '');
-  assert.ok(reply.invitation.warning.includes('容量'));
-  const stored = await env.repo.get(group.id);
-  assert.equal(stored.guests[0].partySize, 8);
-  assert.equal(stored.guests[0].note, '内部备注');
-  assert.equal(stored.guests[1].tableId, '');
-  assert.equal(stored.guests[1].replyNote, '需要一间房');
-  assert.equal(stored.guests[1].needsLodging, true);
-});
-
-test('deletions clean related seating, room lists, and invitation capabilities', async () => {
+test('deletions clean related seating and room lists', async () => {
   const env = setup();
   let group = await env.create();
   group = await env.save(group, 'tables', { name: '圆桌', capacity: 10 });
@@ -322,12 +284,10 @@ test('deletions clean related seating, room lists, and invitation capabilities',
   group = await env.save(group, 'guests', { name: '亲友', partySize: 2, attendance: 'yes', tableId });
   const guestId = group.guests[0].id;
   group = await env.save(group, 'lodgings', { hotel: '酒店', room: '101', guestIds: [guestId], checkIn: '2027-05-19', checkOut: '2027-05-21' });
-  const issued = await env.ok('invitations.issue', { groupId: group.id, revision: group.revision, guestId });
-  group = (await env.ok('records.delete', { groupId: group.id, revision: issued.group.revision, type: 'tables', id: tableId })).group;
+  group = (await env.ok('records.delete', { groupId: group.id, revision: group.revision, type: 'tables', id: tableId })).group;
   assert.equal(group.guests[0].tableId, '');
   group = (await env.ok('records.delete', { groupId: group.id, revision: group.revision, type: 'guests', id: guestId })).group;
   assert.deepEqual(group.lodgings[0].guestIds, []);
-  assert.equal((await env.call('invitations.get', { token: issued.token }, 'visitor')).error.code, 'INVITATION_EXPIRED');
 });
 
 test('only the owner manages membership and removed members lose access', async () => {
@@ -367,20 +327,62 @@ test('validation failures leave prior data unchanged and ignore protected fields
   assert.equal(group.guests[0].invitations, undefined);
 });
 
-test('media is uploaded to the isolated prefix and cannot be borrowed across groups', async () => {
-  const env = setup();
-  let group = await env.create();
-  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
-  const uploaded = await env.ok('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: png.toString('base64'), name: '../../outside.png' });
-  assert.ok(env.uploads[0].path.startsWith(`${STORAGE_PREFIX}${group.id}/`));
-  assert.equal(env.uploads[0].path.includes('..'), false);
-  group = (await env.ok('groups.profile', { groupId: group.id, revision: uploaded.group.revision, profile: { coverFileID: uploaded.fileID } })).group;
-  const other = await env.create('otherOwner');
-  const cross = await env.call('groups.profile', { groupId: other.id, revision: other.revision, profile: { coverFileID: uploaded.fileID } }, 'otherOwner');
-  assert.equal(cross.error.code, 'FORBIDDEN');
-  const bad = await env.call('media.upload', { groupId: group.id, revision: group.revision, kind: 'image', base64: Buffer.from('<svg><script/></svg>').toString('base64') });
-  assert.equal(bad.error.code, 'INVALID_INPUT');
-  assert.equal(env.uploads.length, 1);
+test('retired invitation and media-upload actions reject both members and visitors without writes', async () => {
+  const env = setup(); const group = await env.create();
+  const before = await env.repo.get(group.id);
+  for (const user of ['owner', 'visitor']) {
+    for (const action of ['invitations.issue', 'invitations.get', 'invitations.respond', 'media.upload']) {
+      const result = await env.call(action, { groupId: group.id, revision: group.revision, token: 'a'.repeat(64), kind: 'image', base64: 'AAAA', response: { attendance: 'yes' } }, user);
+      assert.equal(result.error.code, 'INVALID_ACTION', action);
+    }
+  }
+  assert.deepEqual(await env.repo.get(group.id), before);
+  assert.equal(env.uploads.length, 0);
+});
+
+test('legacy invitation data stays inaccessible while member avatars and group collaboration still work', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '亲友', partySize: 2, note: '内部备注' });
+  const legacy = await env.repo.get(group.id);
+  const oldPath = STORAGE_PREFIX + group.id + '/legacy.jpg';
+  const avatarPath = STORAGE_PREFIX + group.id + '/avatar.jpg';
+  legacy.profile.coverFileID = 'cloud://test/' + oldPath;
+  legacy.profile.musicFileID = 'cloud://test/music.mp3';
+  legacy.profile.invitationText = '旧邀请语'; legacy.profile.theme = 'rose';
+  legacy.guests[0].replyNote = '旧回执留言';
+  legacy.invitations = [{ token: 'legacy-token' }]; legacy.invitationHashes = ['legacy-hash'];
+  legacy.members[0].avatarFileID = 'cloud://test/' + avatarPath;
+  legacy.media.push({ fileID: legacy.profile.coverFileID, cloudPath: oldPath, kind: 'image' }, { fileID: legacy.members[0].avatarFileID, cloudPath: avatarPath, kind: 'avatar' });
+  env.repo.groups.set(group.id, legacy);
+  const view = (await env.ok('groups.get', { groupId: group.id })).group;
+  for (const field of ['coverFileID', 'musicFileID', 'invitationText', 'theme']) assert.equal(view.profile[field], undefined);
+  assert.equal(view.guests[0].replyNote, undefined);
+  assert.equal(view.guests[0].note, '内部备注');
+  assert.equal(view.invitations, undefined);
+  const urls = (await env.ok('media.urls', { groupId: group.id })).urls;
+  assert.deepEqual(Object.keys(urls), [legacy.members[0].avatarFileID]);
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '爸爸', role: '爸爸' }, 'dad')).group;
+  group = await env.save(group, 'tasks', { ...group.tasks[0], assigneeId: 'dad', done: true }, 'dad');
+  assert.equal(group.tasks[0].done, true);
+  const stored = await env.repo.get(group.id);
+  assert.equal(stored.invitations, undefined); assert.equal(stored.invitationHashes, undefined);
+  assert.equal(stored.guests[0].replyNote, undefined);
+  assert.equal(stored.media.length, 2, 'retain legacy references for scoped deletion cleanup');
+  assert.equal((await env.ok('groups.delete', { groupId: group.id, revision: group.revision, confirmTitle: group.profile.title })).cleanupPending, false);
+  assert.deepEqual(env.deletedFiles.sort(), [legacy.profile.coverFileID, legacy.members[0].avatarFileID].sort());
+});
+
+test('manual attendance updates preserve notes and safely unseat a growing party', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'tables', { name: '圆桌', capacity: 10 });
+  group = await env.save(group, 'guests', { name: '第一家', partySize: 8, attendance: 'yes', tableId: group.tables[0].id });
+  group = await env.save(group, 'guests', { name: '第二家', partySize: 2, attendance: 'yes', tableId: group.tables[0].id, note: '内部说明' });
+  const response = await env.ok('records.save', { groupId: group.id, revision: group.revision, type: 'guests', record: { ...group.guests[1], partySize: 3, needsLodging: true, replyNote: 'ignored' } });
+  assert.ok(response.warning.includes('容量'));
+  assert.equal(response.group.guests[1].tableId, '');
+  assert.equal(response.group.guests[1].note, '内部说明');
+  assert.equal(response.group.guests[1].replyNote, undefined);
+  assert.equal(response.group.guests[1].needsLodging, true);
 });
 
 test('backend failures are sanitized and do not expose implementation or credentials', async () => {

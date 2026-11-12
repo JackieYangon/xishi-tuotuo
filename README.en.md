@@ -1,7 +1,7 @@
 <h1 align="center">Xishi Tuotuo</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 1.1.0" src="https://img.shields.io/badge/version-1.1.0-00866a?style=flat-square" />
+  <img alt="version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -22,8 +22,7 @@
 | Planning tasks | Add, assign and complete tasks, set due dates and work through preparation stages. |
 | Supplies | Organize wedding items, quantities and preparation status. |
 | Vendors | Keep contact details, quotes, discussion notes and booking status together. |
-| Guests and replies | Maintain guest lists and party sizes, and collect attendance and accommodation needs through invitations. |
-| Digital invitations | Add wedding details and a personal message, then share with guests. |
+| Guest arrangements | Maintain guest lists and party sizes; group members update attendance and accommodation needs. |
 | Round-table seating | Arrange guests around visual round tables with 10 seats, 12 seats or a custom capacity, and check remaining seats. |
 | Wedding-day timeline | Plan times, responsible people and notes for each part of the day. |
 | Accommodation | Organize hotels, rooms and stays for guests travelling from elsewhere. |
@@ -33,11 +32,11 @@
 
 1. Create a wedding planning group and enter the couple's names, wedding date and venue.
 2. Invite your partner and parents to maintain tasks and supplies together.
-3. Organize vendors, guests and accommodation; share invitations and collect replies.
+3. Organize vendors, guests and accommodation; update attendance based on your conversations with guests.
 4. Choose table capacities, assign guests in the round-table view and prepare the wedding-day timeline.
 5. Export information when needed for family members and on-site helpers.
 
-The owner can permanently delete a wedding from the bottom of the family group page by typing its full title. This clears planning data, members, guests and replies, and revokes group invitations and guest invitation links. Export anything you need beforehand. If cloud-file cleanup fails, the owner can retry from the wedding list. Previously exported, downloaded or forwarded copies cannot be recalled. The server retains only a minimal deletion marker without wedding or guest details for duplicate requests and cleanup recovery.
+The owner can permanently delete a wedding from the bottom of the family group page by typing its full title. This clears planning data, members, guests and cloud files, and revokes group invitations. Export anything you need beforehand. If cloud-file cleanup fails, the owner can retry from the wedding list. Previously exported, downloaded or forwarded copies cannot be recalled. The server retains only a minimal deletion marker without wedding or guest details for duplicate requests and cleanup recovery.
 
 Family members can edit their own group name, wedding role and avatar. Owners may edit other members' group names and roles, but only the person concerned can select their avatar. Existing members may choose optional WeChat login and profile completion or skip it without losing access, and return to it later. Avatars are actively selected and WeChat nickname suggestions are optional; personal profile information is not fetched automatically. Membership remains tied to the WeChat account. Stable account labels distinguish members with identical names, but avatars and names are not real-name verification. Invitation codes still allow direct joining without owner approval.
 

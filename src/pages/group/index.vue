@@ -29,10 +29,9 @@
         <view class="muted small">头像和称呼由成员填写，仅供辨认，不代表实名验证。请将邀请码只发给认识的家人；账号标记可区分同名成员。</view>
         <view class="divider"></view><view class="muted">邀请码 · {{ state.codeExpired ? '已过期，请群主更新' : '有效至 ' + state.expires }}</view><view class="invite-code">{{ state.group.joinCode }}</view><view class="actions"><button class="button-secondary" @tap="copyCode">复制邀请码</button><button class="button-primary" open-type="share" :disabled="state.codeExpired">邀请家人</button></view><button v-if="state.isOwner" class="button-text small" @tap="rotateCode" :disabled="state.busy">更新邀请码</button>
       </view>
-      <view class="card"><view class="section-title">我们的婚礼</view><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60"/></view><view class="couple-fields"><view class="field"><text class="label">新娘</text><input class="input" :value="(state.profile.bride)" data-key="bride" @input="profileInput" maxlength="30" placeholder="新娘姓名"/></view><view class="field"><text class="label">新郎</text><input class="input" :value="(state.profile.groom)" data-key="groom" @input="profileInput" maxlength="30" placeholder="新郎姓名"/></view></view><view class="field"><text class="label">婚礼日期</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择日期' }} ▾</view></picker></view><view class="field"><text class="label">场地名称</text><input class="input" :value="(state.profile.venue)" data-key="venue" @input="profileInput" maxlength="100" placeholder="酒店或婚礼场地"/></view><view class="field"><text class="label">详细地址</text><input class="input" :value="(state.profile.address)" data-key="address" @input="profileInput" maxlength="200" placeholder="亲友可按这个地址前往"/></view><view class="row"><button class="button-secondary" @tap="chooseLocation">{{ state.profile.latitude !== null ? '重新选择地图位置' : '添加地图导航' }}</button><button v-if="state.profile.latitude !== null" class="button-text" @tap="clearLocation">移除定位</button></view><view class="notice" v-if="state.profile.latitude !== null">地图位置已选好，保存后亲友可在请柬中一键导航。</view></view>
-      <view class="card"><view class="section-title">电子请柬样式</view><image v-if="state.coverUrl" class="cover" :src="(state.coverUrl)" mode="aspectFill"/><button class="button-secondary" @tap="pickImage" :disabled="(state.busy)">{{ state.profile.coverFileID ? '更换合照' : '添加一张合照' }}</button><view class="muted small">JPG / PNG，2MB 以内</view><view class="field"><text class="label">请柬主题</text><picker :range="(state.themes)" :value="(state.themeIndex)" @change="themeChange"><view class="input">{{ state.themes[state.themeIndex] }} ▾</view></picker></view><view class="field"><text class="label">想对亲友说的话</text><textarea class="input" :value="(state.profile.invitationText)" data-key="invitationText" @input="profileInput" maxlength="2000"/></view><view class="row"><button class="button-secondary" @tap="pickMusic" :disabled="(state.busy)">{{ state.profile.musicFileID ? '更换背景音乐' : '添加背景音乐' }}</button><button v-if="state.profile.musicFileID" class="button-text" @tap="clearMusic">移除</button></view><view class="muted small">从微信文件选择 MP3，2MB 以内</view></view>
-      <button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="saveProfile">保存婚礼资料与请柬</button><button class="button-text" @tap="home">返回婚礼首页</button>
-      <view v-if="state.isOwner" class="card delete-section"><view class="section-title danger">删除婚礼群组</view><view class="muted">删除后所有家人将无法访问，筹备资料、宾客、回执和请柬媒体均会清除，旧邀请立即失效。此操作不可恢复，建议先导出备份。</view><button class="button-secondary danger" :disabled="state.busy" @tap="openDelete">删除此群组</button></view>
+      <view class="card"><view class="section-title">我们的婚礼</view><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60"/></view><view class="couple-fields"><view class="field"><text class="label">新娘</text><input class="input" :value="(state.profile.bride)" data-key="bride" @input="profileInput" maxlength="30" placeholder="新娘姓名"/></view><view class="field"><text class="label">新郎</text><input class="input" :value="(state.profile.groom)" data-key="groom" @input="profileInput" maxlength="30" placeholder="新郎姓名"/></view></view><view class="field"><text class="label">婚礼日期</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择日期' }} ▾</view></picker></view><view class="field"><text class="label">场地名称</text><input class="input" :value="(state.profile.venue)" data-key="venue" @input="profileInput" maxlength="100" placeholder="酒店或婚礼场地"/></view><view class="field"><text class="label">详细地址</text><input class="input" :value="(state.profile.address)" data-key="address" @input="profileInput" maxlength="200" placeholder="亲友可按这个地址前往"/></view><view class="row"><button class="button-secondary" @tap="chooseLocation">{{ state.profile.latitude !== null ? '重新选择地图位置' : '添加地图导航' }}</button><button v-if="state.profile.latitude !== null" class="button-text" @tap="clearLocation">移除定位</button></view><view class="notice" v-if="state.profile.latitude !== null">地图位置已选好。</view></view>
+      <button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="saveProfile">保存婚礼资料</button><button class="button-text" @tap="home">返回婚礼首页</button>
+      <view v-if="state.isOwner" class="card delete-section"><view class="section-title danger">删除婚礼群组</view><view class="muted">删除后所有家人将无法访问，筹备资料、宾客和云文件均会清除，旧群组邀请立即失效。此操作不可恢复，建议先导出备份。</view><button class="button-secondary danger" :disabled="state.busy" @tap="openDelete">删除此群组</button></view>
     </template>
     <view v-if="state.groups.length" class="card groups"><view class="section-title">我参与的婚礼</view><view v-for="item in state.groups" :key="item.id"><button v-if="!item.deletionPending" class="group-choice between" @tap="selectGroup" :data-id="item.id" :disabled="state.busy"><text>{{ item.title }}</text><text class="muted">{{ item.date || '婚期待定' }} ›</text></button><view v-else class="notice">群组已关闭访问，部分云文件仍待清理。<button class="button-text danger" :disabled="state.busy" :data-id="item.id" @tap="retryDeletion">重试文件清理</button></view></view></view>
   </template>
@@ -40,7 +39,7 @@
 <view v-if="state.deleteOpen" class="delete-mask">
   <view class="card delete-dialog">
     <view class="section-title danger">永久删除此婚礼？</view>
-    <view class="muted">包括所有筹备事项、宾客、排桌、住宿、请柬及回执。所有成员都会失去访问权限；已经导出或转发的副本无法撤回。</view>
+    <view class="muted">包括所有筹备事项、宾客、排桌、住宿和云文件。所有成员都会失去访问权限；已经导出或转发的副本无法撤回。</view>
     <view class="field"><text class="label">输入婚礼名称：{{ state.group.profile.title }}</text><input class="input delete-confirm-input" :value="state.deleteTitle" @input="deleteTitleInput" :disabled="state.busy" placeholder="完整输入名称以确认" /></view>
     <view v-if="state.deleteError" class="error">{{ state.deleteError }}</view>
     <view class="actions"><button class="button-secondary" :disabled="state.busy" @tap="state.deleteOpen = false">取消</button><button class="button-primary delete-submit" :loading="state.busy" :disabled="state.busy || state.deleteTitle !== state.group.profile.title" @tap="deleteWedding">确认永久删除</button></view>
@@ -67,10 +66,10 @@
 import { defineComponent } from 'vue';
 import { updateState } from '../../utils/state';
 import service from '../../utils/service';
-const blankProfile = { title: '', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null, coverFileID: '', musicFileID: '', invitationText: '诚邀您见证我们的幸福时刻，期待与您相聚。', theme: 'rose' };
+const blankProfile = { title: '', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null };
 
 export default defineComponent({
-  data() { return { state: { loading: true, busy: false, error: '', group: null, groups: [], nickname: '', roleIndex: 0, roles: ['新娘', '新郎', '妈妈', '爸爸', '家人', '伴郎伴娘'], code: '', joinMode: false, profile: { ...blankProfile }, coverUrl: '', themes: ['温柔玫瑰', '奶油简约', '中式喜红'], themeIndex: 0 } as Record<string, any>, runtime: {} as Record<string, any> }; },
+  data() { return { state: { loading: true, busy: false, error: '', group: null, groups: [], nickname: '', roleIndex: 0, roles: ['新娘', '新郎', '妈妈', '爸爸', '家人', '伴郎伴娘'], code: '', joinMode: false, profile: { ...blankProfile } } as Record<string, any>, runtime: {} as Record<string, any> }; },
 onLoad(options) { if (options.code)
     updateState(this.state, { code: options.code, joinMode: true }); },
 onShow() { this.load(); },
@@ -155,7 +154,7 @@ async deleteWedding() {
 },
 clearDeletedGroup() {
     this.runtime = {};
-    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, deleteOpen: false, memberOpen: false, avatarUrls: {}, deleteTitle: '', deleteError: '', code: '', error: '', joinMode: false });
+    updateState(this.state, { group: null, profile: { ...blankProfile }, isOwner: false, deleteOpen: false, memberOpen: false, avatarUrls: {}, deleteTitle: '', deleteError: '', code: '', error: '', joinMode: false });
 },
 async retryDeletion(event) {
     if (this.state.busy) return;
@@ -183,7 +182,7 @@ async load() {
                     this.runtime._dirty = false;
                     this.runtime._profileBase = null;
                     this.runtime._profileRevision = undefined;
-                    updateState(this.state, { group: null, profile: { ...blankProfile }, coverUrl: '', isOwner: false, memberOpen: false, avatarUrls: {}, deleteOpen: false, deleteTitle: '', error: '群组已删除或你已无法访问，可以选择其他婚礼。' });
+                    updateState(this.state, { group: null, profile: { ...blankProfile }, isOwner: false, memberOpen: false, avatarUrls: {}, deleteOpen: false, deleteTitle: '', error: '群组已删除或你已无法访问，可以选择其他婚礼。' });
                 }
                 else
                     throw error;
@@ -207,28 +206,26 @@ applyGroup(group, resetForm = false) {
         this.runtime._profileRevision = group.revision;
         this.runtime._profileBase = { ...blankProfile, ...group.profile };
         patch.profile = { ...this.runtime._profileBase };
-        patch.themeIndex = Math.max(0, ['rose', 'ivory', 'red'].indexOf(group.profile.theme));
         this.runtime._dirty = false;
     }
     updateState(this.state, patch);
 },
 async mediaUrls() {
     if (!this.state.group) {
-        updateState(this.state, { coverUrl: '', avatarUrls: {} });
+        updateState(this.state, { avatarUrls: {} });
         return;
     }
     try {
         const data = await service.call('media.urls', { groupId: this.state.group.id });
-        updateState(this.state, { coverUrl: data.urls[this.state.group.profile.coverFileID] || '', avatarUrls: data.urls });
+        updateState(this.state, { avatarUrls: data.urls });
     }
     catch (_) {
-        updateState(this.state, { coverUrl: '', avatarUrls: {} });
+        updateState(this.state, { avatarUrls: {} });
     }
 },
 input(event) { updateState(this.state, { [event.currentTarget.dataset.key]: event.detail.value }); },
 profileInput(event) { this.runtime._dirty = true; updateState(this.state, { ['profile.' + event.currentTarget.dataset.key]: event.detail.value }); },
 roleChange(event) { updateState(this.state, { roleIndex: Number(event.detail.value) }); },
-themeChange(event) { this.runtime._dirty = true; const index = Number(event.detail.value); updateState(this.state, { themeIndex: index, 'profile.theme': ['rose', 'ivory', 'red'][index] }); },
 toggleJoin() { updateState(this.state, { joinMode: !this.state.joinMode }); },
 async createOrJoin() {
     if (this.state.busy)
@@ -338,58 +335,6 @@ async removeMember(event) {
         updateState(this.state, { busy: false });
     }
 },
-async pickImage() {
-    if (this.state.busy)
-        return;
-    if (this.runtime._dirty)
-        return service.showError(new Error('请先保存婚礼资料，再添加照片'));
-    wx.chooseMedia({ count: 1, mediaType: ['image'], sizeType: ['compressed'], sourceType: ['album', 'camera'], success: async (result) => {
-            const file = result.tempFiles[0];
-            if (file.size > 2 * 1024 * 1024)
-                return service.showError(new Error('请选择 2MB 以内的 JPG 或 PNG 照片'));
-            await this.uploadMedia(file.tempFilePath, 'image', 'wedding.jpg');
-        } });
-},
-async pickMusic() {
-    if (this.state.busy)
-        return;
-    if (this.runtime._dirty)
-        return service.showError(new Error('请先保存婚礼资料，再添加音乐'));
-    try {
-        const result = await service.chooseFile({ count: 1, type: 'file', extension: ['mp3'] });
-        const file = result.tempFiles[0];
-        if (file.size > 2 * 1024 * 1024)
-            throw new Error('请选择 2MB 以内的 MP3 音乐');
-        await this.uploadMedia(file.path, 'audio', file.name);
-    }
-    catch (error) {
-        if (!/cancel/.test(error.errMsg || ''))
-            service.showError(error);
-    }
-},
-async uploadMedia(path, kind, name) {
-    if (this.runtime._dirty) {
-        service.showError(new Error('请先保存婚礼资料，再添加照片或音乐'));
-        return;
-    }
-    updateState(this.state, { busy: true });
-    try {
-        const uploaded = await service.upload(path, kind, name);
-        const key = kind === 'image' ? 'coverFileID' : 'musicFileID';
-        updateState(this.state, { ['profile.' + key]: uploaded.fileID });
-        const data = await service.mutate('groups.profile', { profile: { [key]: uploaded.fileID } });
-        this.applyGroup(data.group, true);
-        await this.mediaUrls();
-        wx.showToast({ title: '已添加到请柬' });
-    }
-    catch (error) {
-        service.showError(error);
-    }
-    finally {
-        updateState(this.state, { busy: false });
-    }
-},
-clearMusic() { this.runtime._dirty = true; updateState(this.state, { 'profile.musicFileID': '' }); },
 home() { wx.reLaunch({ url: '/pages/home/index' }); }
 }
 });
@@ -412,6 +357,6 @@ home() { wx.reLaunch({ url: '/pages/home/index' }); }
 .delete-mask { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; padding: 32rpx; background: rgba(40, 28, 28, .48); }
 .delete-dialog { width: 100%; max-height: 80vh; overflow-y: auto; }
 .delete-dialog .label { overflow-wrap: anywhere; }
-.card .section-title { margin-top: 0; }.member { min-height: 90rpx; border-bottom: 1rpx solid #f5eee7; }.member-name { margin-right: 16rpx; font-weight: 500; }.invite-code { font-size: 42rpx; letter-spacing: 6rpx; font-weight: 600; color: #954b50; margin-top: 8rpx; }.couple-fields { display: flex; gap: 24rpx; }.couple-fields .field { flex: 1; width: 0; margin-top: 0; }.cover { width: 100%; height: 340rpx; border-radius: 18rpx; margin-bottom: 20rpx; }.group-choice { width: 100%; background: #faf7f2; padding: 24rpx; margin-top: 14rpx; text-align: left; }.groups { margin-top: 30rpx; }
+.card .section-title { margin-top: 0; }.member { min-height: 90rpx; border-bottom: 1rpx solid #f5eee7; }.member-name { margin-right: 16rpx; font-weight: 500; }.invite-code { font-size: 42rpx; letter-spacing: 6rpx; font-weight: 600; color: #954b50; margin-top: 8rpx; }.couple-fields { display: flex; gap: 24rpx; }.couple-fields .field { flex: 1; width: 0; margin-top: 0; }.group-choice { width: 100%; background: #faf7f2; padding: 24rpx; margin-top: 14rpx; text-align: left; }.groups { margin-top: 30rpx; }
 
 </style>

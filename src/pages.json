@@ -33,15 +33,6 @@
       }
     },
     {
-      "path": "pages/invitation/index",
-      "style": {
-        "navigationBarTitleText": "诚邀赴宴",
-        "enablePullDownRefresh": true,
-        "navigationBarBackgroundColor": "#954b50",
-        "navigationBarTextStyle": "white"
-      }
-    },
-    {
       "path": "pages/export/index",
       "style": {
         "navigationBarTitleText": "导出筹备资料"

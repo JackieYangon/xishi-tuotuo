@@ -9,7 +9,7 @@ const CATEGORIES = [
 ];
 const labels = {
   sides: { bride: '女方亲友', groom: '男方亲友', shared: '共同亲友' },
-  attendance: { pending: '待回复', yes: '确认出席', no: '不出席' },
+  attendance: { pending: '待确认', yes: '确认出席', no: '不出席' },
   items: { pending: '待准备', ordered: '已购买 / 待到货', ready: '已备齐' },
   vendors: { pending: '待联系', contacted: '已沟通', booked: '已预订' }
 };
@@ -38,11 +38,10 @@ function buildSheets(group, options) {
   function add(key, name, headers, rows, widths) {
     if (category === 'all' || category === key) sheets.push({ name, rows: [headers].concat(rows), widths });
   }
-  function optional(headers, rows, records, reply) {
+  function optional(headers, rows, records) {
     if (phones) { headers.push('联系电话'); rows.forEach((row, index) => row.push(value(records[index].phone))); }
     if (notes) {
       headers.push('内部备注'); rows.forEach((row, index) => row.push(value(records[index].note)));
-      if (reply) { headers.push('回执留言'); rows.forEach((row, index) => row.push(value(records[index].replyNote))); }
     }
     return { headers, rows };
   }
@@ -53,7 +52,7 @@ function buildSheets(group, options) {
     ['筹备成员', members.map(member => [value(member.nickname), value(member.role)].filter(Boolean).join(' · ')).join('；')],
     ['事项完成', completed + ' / ' + tasks.length], ['筹备进度', (tasks.length ? Math.round(completed / tasks.length * 100) : 0) + '%'],
     ['受邀人数（含同行）', sum(guests)], ['确认出席人数', sum(guests.filter(guest => guest.attendance === 'yes'))],
-    ['待回复人数', sum(guests.filter(guest => guest.attendance !== 'yes' && guest.attendance !== 'no'))]
+    ['待确认人数', sum(guests.filter(guest => guest.attendance !== 'yes' && guest.attendance !== 'no'))]
   ], [25, 65]);
   const taskHeaders = ['事项', '截止日期', '负责人', '状态'];
   const taskRows = tasks.map(task => [value(task.title), value(task.dueDate), memberName(task.assigneeId), task.done ? '已完成' : '待完成']);
@@ -67,16 +66,16 @@ function buildSheets(group, options) {
   const vendors = array(group.vendors);
   const vendor = optional(['商家', '服务类别', '联系人', '报价（元）', '联系状态'], vendors.map(entry => [value(entry.name), value(entry.category), value(entry.contact), value(entry.quote), labels.vendors[entry.status] || '待联系']), vendors);
   add('vendors', '商家联系', vendor.headers, vendor.rows);
-  const guest = optional(['宾客 / 家庭', '亲友分组', '关系', '人数（含同行）', '出席状态', '需要住宿', '桌位', '住宿安排'], guests.map(entry => [value(entry.name), labels.sides[entry.side] || '共同亲友', value(entry.relation), size(entry), labels.attendance[entry.attendance] || '待回复', entry.needsLodging ? '是' : '否', tableName(entry), lodgingNames(entry.id)]), guests, true);
+  const guest = optional(['宾客 / 家庭', '亲友分组', '关系', '人数（含同行）', '出席状态', '需要住宿', '桌位', '住宿安排'], guests.map(entry => [value(entry.name), labels.sides[entry.side] || '共同亲友', value(entry.relation), size(entry), labels.attendance[entry.attendance] || '待确认', entry.needsLodging ? '是' : '否', tableName(entry), lodgingNames(entry.id)]), guests);
   add('guests', '宾客名单', guest.headers, guest.rows);
   const seatHeaders = ['桌名', '容量', '已安排人数', '剩余座位', '宾客 / 家庭', '人数（含同行）', '出席状态'];
   if (phones) seatHeaders.push('联系电话');
-  if (notes) seatHeaders.push('内部备注', '回执留言');
+  if (notes) seatHeaders.push('内部备注');
   const seatRows = [];
   function seatRow(base, guest) {
-    const row = base.concat(guest ? [value(guest.name), size(guest), labels.attendance[guest.attendance] || '待回复'] : ['', '', '']);
+    const row = base.concat(guest ? [value(guest.name), size(guest), labels.attendance[guest.attendance] || '待确认'] : ['', '', '']);
     if (phones) row.push(guest ? value(guest.phone) : '');
-    if (notes) row.push(guest ? value(guest.note) : '', guest ? value(guest.replyNote) : '');
+    if (notes) row.push(guest ? value(guest.note) : '');
     seatRows.push(row);
   }
   tables.forEach(table => {

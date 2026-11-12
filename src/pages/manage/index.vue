@@ -21,7 +21,7 @@
       </view>
     </view>
     <view v-if="state.type === 'guests'" class="soft-notice">
-      <text>一份名单，串联请柬、排桌与住宿。</text>
+      <text>一份名单，安排出席、排桌与住宿。</text>
       <button class="text-action" @tap="goSeats">去排桌 →</button>
     </view>
     <view v-if="state.type === 'lodgings' && state.lodgingUnassigned" class="soft-notice">
@@ -65,10 +65,8 @@
         <text v-if="item.phone" class="muted">{{ item.phone }}</text>
       </view>
       <view v-if="state.type === 'lodgings' && item.guestNames" class="extra-line guest-names">入住：{{ item.guestNames }}</view>
-      <view v-if="state.type === 'guests' && item.replyNote" class="record-note">回执留言：{{ item.replyNote }}</view>
       <view v-if="item.note" class="record-note">{{ item.note }}</view>
       <view class="record-actions">
-        <button v-if="state.type === 'guests'" class="mini-action accent-action" :data-id="(item.id)" @tap="invite" :disabled="(!!state.pendingId)">发请柬</button>
         <button v-if="state.type === 'items' && item.status !== 'ready'" class="mini-action accent-action" :data-id="(item.id)" @tap="advanceItem" :loading="(state.pendingId === item.id)" :disabled="(!!state.pendingId)">{{ item.status === 'pending' ? '标记已购买' : '标记已备齐' }}</button>
         <view class="action-spacer"></view>
         <button class="mini-action" :data-id="(item.id)" @tap="openEdit" :disabled="(!!state.pendingId)">编辑</button>
@@ -115,7 +113,7 @@
             <checkbox-group @change="onGuestsChange">
               <label v-for="(guest, index) in field.choices" :key="guest.id" class="guest-choice">
                 <checkbox :value="(guest.id)" :checked="(guest.checked)" color="#984354" :disabled="(state.saving)" />
-                <view class="guest-choice-name">{{ guest.name }}<text class="guest-choice-detail">{{ guest.partySize }} 人{{ guest.notAttending ? ' · 已回复不出席，可取消分配' : guest.needsLodging ? ' · 需住宿' : '' }}</text></view>
+                <view class="guest-choice-name">{{ guest.name }}<text class="guest-choice-detail">{{ guest.partySize }} 人{{ guest.notAttending ? ' · 已确认不出席，可取消分配' : guest.needsLodging ? ' · 需住宿' : '' }}</text></view>
               </label>
             </checkbox-group>
             <view v-if="!field.choices.length" class="muted guest-picker-hint">请先在宾客名单中添加亲友。</view>
@@ -123,7 +121,7 @@
         </view>
         <view v-if="state.draftError" class="draft-error">{{ state.draftError }}</view>
         <button v-if="state.editorConflict" class="button-secondary" @tap="reloadEditor" :disabled="(state.saving)">重新载入最新记录</button>
-        <view v-if="state.type === 'guests'" class="muted form-help">人数包含同行亲友。请柬回复会自动更新到这份名单；修改人数可能影响已安排的桌位。</view>
+        <view v-if="state.type === 'guests'" class="muted form-help">人数包含同行亲友。请根据与亲友的确认结果手动更新出席状态；修改人数可能影响已安排的桌位。</view>
       </view>
     </scroll-view>
     <view class="editor-footer">
@@ -254,7 +252,7 @@ renderRecords() {
             row.statusLabel = assigned.length ? '已分配 ' + countPeople(assigned) + ' 人' : '待分配宾客';
             row.statusClass = assigned.length ? 'status-done' : '';
             row.details = [record.room || '房间待定', dateLabel(record.checkIn) + ' — ' + dateLabel(record.checkOut)];
-            row.guestNames = assigned.map(guest => guest.name + (guest.attendance === 'no' ? '（已回复不出席）' : '')).join('、');
+            row.guestNames = assigned.map(guest => guest.name + (guest.attendance === 'no' ? '（已确认不出席）' : '')).join('、');
             row.searchText += ' ' + row.guestNames.toLowerCase();
         }
         row.details = row.details.filter(Boolean);
@@ -288,7 +286,7 @@ renderRecords() {
         stats = [{ label: '全部事项', value: source.length }, { label: '已经完成', value: completed }, { label: '完成进度', value: (source.length ? Math.round(completed / source.length * 100) : 0) + '%' }];
     }
     else if (type === 'guests') {
-        stats = [{ label: '受邀亲友', value: countPeople(source) + ' 人' }, { label: '确认出席', value: countPeople(source.filter(guest => guest.attendance === 'yes')) + ' 人' }, { label: '等待回复', value: source.filter(guest => guest.attendance === 'pending').length + ' 组' }];
+        stats = [{ label: '受邀亲友', value: countPeople(source) + ' 人' }, { label: '确认出席', value: countPeople(source.filter(guest => guest.attendance === 'yes')) + ' 人' }, { label: '待确认', value: source.filter(guest => guest.attendance === 'pending').length + ' 组' }];
     }
     else if (type === 'items') {
         stats = [{ label: '物品种类', value: source.length }, { label: '已经买好', value: source.filter(item => item.status === 'ordered').length }, { label: '全部备齐', value: source.filter(item => item.status === 'ready').length }];
@@ -536,7 +534,7 @@ async remove(event) {
         return;
     const response = await new Promise<WechatMiniprogram.ShowModalSuccessCallbackResult>(resolve => wx.showModal({
         title: '删除' + this.state.config.singular,
-        content: '确定删除“' + (record.title || record.name || record.hotel) + '”吗？' + (this.state.type === 'guests' ? '该宾客的排桌、住宿关联和专属请柬也将失效。' : '群组成员也会同步看到此次修改。'),
+        content: '确定删除“' + (record.title || record.name || record.hotel) + '”吗？' + (this.state.type === 'guests' ? '该宾客的排桌和住宿关联也将清除。' : '群组成员也会同步看到此次修改。'),
         confirmText: '删除', confirmColor: '#a64050', success: resolve, fail: () => resolve({ confirm: false, cancel: true, content: String(), errMsg: '' })
     }));
     if (!response.confirm)
@@ -554,7 +552,6 @@ async remove(event) {
         updateState(this.state, { pendingId: '' });
     }
 },
-invite(event) { wx.navigateTo({ url: '/pages/invitation/index?guestId=' + encodeURIComponent(event.currentTarget.dataset.id) + '&mode=manage' }); },
 callVendor(event) {
     const phoneNumber = event.currentTarget.dataset.phone;
     if (phoneNumber)

@@ -98,16 +98,6 @@ test('group deletion requires typed confirmation and a failed request preserves 
   assert.equal(page.state.busy, false); assert.equal(page.state.deleteError, '网络中断');
 });
 
-test('revoked invitation clears its private view and stops audio playback', () => {
-  const { page } = pageHarness('src/pages/invitation/index.vue', {});
-  let stopped = false;
-  page.state.invitation = { guest: { name: 'Guest' } };
-  page.runtime.audio = { destroy() { stopped = true; } };
-  page.clearInvalidInvitation({ code: 'INVITATION_EXPIRED', message: '已失效' });
-  assert.equal(page.state.invitation, null); assert.equal(page.runtime.audio, null);
-  assert.equal(stopped, true);
-});
-
 test('out-of-order group reads never downgrade cached revisions', async () => {
   const { service, pending } = serviceHarness();
   service.setGroup(group(1));
@@ -218,41 +208,6 @@ test('accepting a conflict reload replaces the draft before a new edit is saved'
   assert.equal(page.state.profile.venue, '最新场地');
 });
 
-test('media upload cannot discard an unsaved wedding profile', async () => {
-  let uploads = 0;
-  const messages = [];
-  const service = { async upload() { uploads += 1; }, showError: error => messages.push(error.message) };
-  const { page } = pageHarness('src/pages/group/index.vue', service);
-  page.applyGroup(group(1));
-  page.profileInput(input('title', '尚未保存'));
-  await page.uploadMedia('/photo.jpg', 'image', 'photo.jpg');
-  assert.equal(uploads, 0);
-  assert.equal(page.state.profile.title, '尚未保存');
-  assert.ok(messages[0].includes('先保存'));
-});
-
-test('declining an invitation does not require the hidden party-size input', async () => {
-  const submissions = [];
-  const errors = [];
-  const invitation = { profile: group(1).profile, guest: { name: '亲友', attendance: 'no', partySize: 1, needsLodging: false, note: '' }, tableName: '', coverUrl: '', musicUrl: '' };
-  const service = {
-    async call(action, payload) { submissions.push({ action, payload: clone(payload) }); return { invitation }; },
-    showError: error => errors.push(error.message)
-  };
-  const { page } = pageHarness('src/pages/invitation/index.vue', service);
-  page.runtime.token = 'a'.repeat(64);
-  page.applyInvitation({ ...invitation, guest: { ...invitation.guest, attendance: 'pending', partySize: 2 } });
-  Object.assign(page.state, { attendance: 'no', partySize: '', needsLodging: true });
-  await page.submit();
-  assert.equal(submissions.length, 1, errors.join('; '));
-  assert.equal(submissions[0].action, 'invitations.respond');
-  assert.equal(submissions[0].payload.response.attendance, 'no');
-  assert.equal(submissions[0].payload.response.needsLodging, false);
-  assert.ok(Number.isInteger(submissions[0].payload.response.partySize));
-  assert.ok(submissions[0].payload.response.partySize >= 1);
-  assert.equal(page.state.submitted, true);
-});
-
 test('a removed member loses the previously rendered group and unsaved private draft', async () => {
   let cleared = false;
   const service = {
@@ -268,24 +223,7 @@ test('a removed member loses the previously rendered group and unsaved private d
   assert.equal(cleared, true);
   assert.equal(page.state.group, null);
   assert.equal(page.state.profile.title, '');
-  assert.equal(page.state.coverUrl, '');
+  assert.deepEqual(page.state.avatarUrls, {});
   assert.equal(page.runtime._dirty, false);
   assert.ok(page.state.error);
-});
-
-test('failed RSVP submission keeps user input and never reports success', async () => {
-  const errors = [];
-  const service = { async call() { throw new Error('网络暂不可用'); }, showError: error => errors.push(error.message) };
-  const { page, toasts } = pageHarness('src/pages/invitation/index.vue', service);
-  page.runtime.token = 'b'.repeat(64);
-  page.applyInvitation({ profile: group(1).profile, guest: { name: 'Guest', attendance: 'pending', partySize: 1, needsLodging: false, note: '' }, tableName: '', coverUrl: '', musicUrl: '' });
-  Object.assign(page.state, { attendance: 'yes', partySize: '3', needsLodging: true, note: '请安排一间房' });
-  await page.submit();
-  assert.equal(page.state.partySize, '3');
-  assert.equal(page.state.note, '请安排一间房');
-  assert.equal(page.state.needsLodging, true);
-  assert.equal(page.state.busy, false);
-  assert.equal(page.state.submitted, false);
-  assert.equal(toasts.length, 0);
-  assert.equal(errors.length, 1);
 });

@@ -29,9 +29,6 @@ const repo = {
   async findByJoinCode(code) {
     return documentData(await db.collection(COLLECTION).where({ joinCode: code }).limit(1).get());
   },
-  async findByInvitationHash(tokenHash) {
-    return documentData(await db.collection(COLLECTION).where({ invitationHashes: db.command.all([tokenHash]) }).limit(1).get());
-  },
   async create(group) {
     await db.collection(COLLECTION).add({ data: Object.assign({ _id: group.id }, withoutSystemFields(group)) });
   },

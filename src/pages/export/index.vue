@@ -30,7 +30,7 @@
         <switch color="#954b50" :checked="(state.includePhones)" data-key="includePhones" :disabled="(state.generating)" @change="onPrivacy" />
       </view>
       <view class="between export-switch">
-        <view><view>包含备注与回执留言</view><view class="muted small">筹备说明和亲友填写的留言</view></view>
+        <view><view>包含内部备注</view><view class="muted small">群组成员填写的筹备说明</view></view>
         <switch color="#954b50" :checked="(state.includeNotes)" data-key="includeNotes" :disabled="(state.generating)" @change="onPrivacy" />
       </view>
       <view class="notice">默认不包含电话和备注，发送前可按接收人的需要选择。</view>

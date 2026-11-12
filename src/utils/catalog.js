@@ -43,14 +43,14 @@ const catalog = {
   guests: {
     title: '宾客名单', subtitle: '每一位重要的人，都安排得妥妥当当。', singular: '宾客',
     empty: '从最亲近的人开始，添加第一位宾客', search: '搜索姓名、关系或电话',
-    filters: [option('all', '全部'), option('pending', '待回复'), option('yes', '确认出席'), option('no', '不出席'), option('lodging', '需住宿')],
+    filters: [option('all', '全部'), option('pending', '待确认'), option('yes', '确认出席'), option('no', '不出席'), option('lodging', '需住宿')],
     fields: [
       { key: 'name', label: '宾客 / 家庭名称', kind: 'text', required: true, max: 60, placeholder: '例如：王叔叔一家' },
       { key: 'side', label: '亲友分组', kind: 'select', options: [option('groom', '男方亲友'), option('bride', '女方亲友'), option('shared', '共同亲友')] },
       { key: 'relation', label: '关系', kind: 'text', max: 40, placeholder: '亲戚、同事、同学、朋友…' },
       { key: 'phone', label: '联系电话', kind: 'phone', max: 30, placeholder: '方便婚礼当天联系' },
       { key: 'partySize', label: '出席人数（含同行亲友）', kind: 'number', required: true, min: 1, max: 30 },
-      { key: 'attendance', label: '出席状态', kind: 'select', options: [option('pending', '待回复'), option('yes', '确认出席'), option('no', '不出席')] },
+      { key: 'attendance', label: '出席状态', kind: 'select', options: [option('pending', '待确认'), option('yes', '确认出席'), option('no', '不出席')] },
       { key: 'needsLodging', label: '需要安排住宿', kind: 'switch' }, note
     ],
     defaults: { name: '', side: 'shared', relation: '', phone: '', partySize: 1, attendance: 'pending', needsLodging: false, note: '', tableId: '' }
