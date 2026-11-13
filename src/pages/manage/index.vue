@@ -8,9 +8,9 @@
 
   <view v-if="state.loading && !state.allCount" class="card empty">正在整理{{ state.config.title }}…</view>
   <view v-else-if="state.error" class="card empty">
-    <view class="error-title">{{ state.noGroup ? '先加入筹备群组' : '暂时没有连接上' }}</view>
+    <view class="error-title">{{ state.noGroup ? '先创建或选择婚礼' : '暂时没有连接上' }}</view>
     <view class="muted error-description">{{ state.error }}</view>
-    <button v-if="state.noGroup" class="button-primary" @tap="goGroup">创建或加入群组</button>
+    <button v-if="state.noGroup" class="button-primary" @tap="goGroup">开始筹备</button>
     <button v-else class="button-secondary" @tap="load">重新加载</button>
   </view>
   <template v-else>
@@ -41,7 +41,7 @@
     <view v-if="!state.rows.length" class="card empty">
       <view class="empty-mark">{{ state.allCount ? '⌕' : '＋' }}</view>
       <view>{{ state.allCount ? '没有找到符合条件的记录' : state.config.empty }}</view>
-      <view class="muted empty-help">{{ state.allCount ? '换个关键词，或查看其他分类' : '添加后，群组成员就能一起查看和更新' }}</view>
+      <view class="muted empty-help">{{ state.allCount ? '换个关键词，或查看其他分类' : state.personal ? '添加你的第一条筹备记录' : '添加后，家人就能一起查看和更新' }}</view>
     </view>
 
     <view v-for="(item, index) in state.rows" :key="item.id" :class="'card record-card ' + (state.type === 'tasks' && item.done ? 'record-complete' : '')">
@@ -84,7 +84,7 @@
   <view class="editor-sheet" @tap.stop="stopTap">
     <view class="editor-heading">
       <view>
-        <view class="eyebrow">群组共同维护</view>
+        <view class="eyebrow">{{ state.personal ? '个人筹备记录' : '家庭共同维护' }}</view>
         <view class="editor-title">{{ state.editingId ? '编辑' : '添加' }}{{ state.config.singular }}</view>
       </view>
       <button class="close-editor" @tap="closeEditor" :disabled="(state.saving)" aria-label="关闭编辑">×</button>
@@ -204,6 +204,7 @@ renderRecords() {
     if (!group)
         return;
     const { type, query, filter } = this.state;
+    this.state.personal = group.mode === 'personal';
     const source = group[type] || [];
     const members = group.members || [];
     const memberNames = {};
@@ -534,7 +535,7 @@ async remove(event) {
         return;
     const response = await new Promise<WechatMiniprogram.ShowModalSuccessCallbackResult>(resolve => wx.showModal({
         title: '删除' + this.state.config.singular,
-        content: '确定删除“' + (record.title || record.name || record.hotel) + '”吗？' + (this.state.type === 'guests' ? '该宾客的排桌和住宿关联也将清除。' : '群组成员也会同步看到此次修改。'),
+        content: '确定删除“' + (record.title || record.name || record.hotel) + '”吗？' + (this.state.type === 'guests' ? '该宾客的排桌和住宿关联也将清除。' : this.state.personal ? '' : '群组成员也会同步看到此次修改。'),
         confirmText: '删除', confirmColor: '#a64050', success: resolve, fail: () => resolve({ confirm: false, cancel: true, content: String(), errMsg: '' })
     }));
     if (!response.confirm)

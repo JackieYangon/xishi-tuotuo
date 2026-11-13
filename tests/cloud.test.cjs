@@ -35,10 +35,75 @@ function setup() {
   const service = createService({ repo, storage, allowedAppId: APP_ID, now: () => clock });
   const call = (action, payload = {}, user = 'owner', appId = APP_ID) => service({ action, payload }, { OPENID: user, APPID: appId });
   async function ok(action, payload, user) { const result = await call(action, payload, user); assert.equal(result.ok, true, JSON.stringify(result)); return result.data; }
-  async function create(user = 'owner') { return (await ok('groups.create', { nickname: '新人', role: '新郎', profile: { title: '一起办婚礼', date: '2027-05-20' } }, user)).group; }
+  async function create(user = 'owner') {
+    const group = (await ok('groups.create', { nickname: '新人', role: '新郎', profile: { title: '一起办婚礼', date: '2027-05-20' } }, user)).group;
+    return (await ok('groups.collaboration', { groupId: group.id, revision: group.revision, enabled: true }, user)).group;
+  }
   async function save(group, type, record, user = 'owner') { return (await ok('records.save', { groupId: group.id, revision: group.revision, type, record }, user)).group; }
   return { repo, storage, service, call, ok, create, save, uploads, deletedFiles, advance: ms => { clock += ms; } };
 }
+
+test('personal weddings support planning without invitations and reject other accounts', async () => {
+  const env = setup();
+  let group = (await env.ok('groups.create', { nickname: '我', mode: 'shared', profile: {} })).group;
+  assert.equal(group.mode, 'personal');
+  assert.equal(group.joinCode, '');
+  assert.equal(group.joinCodeExpiresAt, 0);
+  group = await env.save(group, 'tasks', { title: '个人安排', note: '稍后和家人一起准备' });
+  group = await env.save(group, 'tables', { name: '主桌', capacity: 10 });
+  group = await env.save(group, 'guests', { name: '亲友', partySize: 2, attendance: 'yes', tableId: group.tables[0].id });
+  assert.equal((await env.ok('groups.get', { groupId: group.id })).group.guests.length, 1);
+  for (const action of ['groups.get', 'media.urls', 'records.save', 'groups.collaboration']) {
+    const response = await env.call(action, { groupId: group.id, revision: group.revision, enabled: true, type: 'tasks', record: { title: '越权' } }, 'stranger');
+    assert.equal(response.error.code, 'FORBIDDEN', action);
+  }
+  assert.equal((await env.call('groups.rotateCode', { groupId: group.id, revision: group.revision })).error.code, 'COLLABORATION_DISABLED');
+});
+
+test('owner can enable collaboration, retain records and return to personal after removing members', async () => {
+  const env = setup();
+  let group = (await env.ok('groups.create', { nickname: '我', profile: {} })).group;
+  group = await env.save(group, 'items', { name: '喜糖', quantity: 20 });
+  const groupId = group.id;
+  const itemId = group.items[0].id;
+  group = (await env.ok('groups.collaboration', { groupId, revision: group.revision, enabled: true })).group;
+  const code = group.joinCode;
+  assert.match(code, /^[A-F0-9]{12}$/);
+  group = (await env.ok('groups.join', { code, nickname: '家人' }, 'dad')).group;
+  assert.equal(group.items[0].id, itemId);
+  group = await env.save(group, 'items', { ...group.items[0], quantity: 30 }, 'dad');
+  assert.equal((await env.ok('groups.get', { groupId })).group.items[0].quantity, 30);
+  assert.equal((await env.call('groups.collaboration', { groupId, revision: group.revision, enabled: false }, 'dad')).error.code, 'FORBIDDEN');
+  assert.equal((await env.call('groups.collaboration', { groupId, revision: group.revision, enabled: false })).error.code, 'MEMBERS_REMAIN');
+  group = (await env.ok('groups.removeMember', { groupId, revision: group.revision, memberId: 'dad' })).group;
+  const rotatedCode = group.joinCode;
+  group = (await env.ok('groups.collaboration', { groupId, revision: group.revision, enabled: false })).group;
+  assert.equal(group.mode, 'personal');
+  assert.equal(group.id, groupId);
+  assert.equal(group.items[0].quantity, 30);
+  assert.equal(group.joinCode, '');
+  for (const oldCode of [code, rotatedCode]) assert.equal((await env.call('groups.join', { code: oldCode, nickname: '家人' }, 'dad')).error.code, 'INVALID_CODE');
+  assert.equal((await env.call('groups.get', { groupId }, 'dad')).error.code, 'FORBIDDEN');
+  group = (await env.ok('groups.collaboration', { groupId, revision: group.revision, enabled: true })).group;
+  assert.notEqual(group.joinCode, rotatedCode);
+  assert.equal((await env.ok('groups.join', { code: group.joinCode, nickname: '家人' }, 'dad')).group.items[0].id, itemId);
+});
+
+test('collaboration transitions reject stale revisions and invalid flags', async () => {
+  const env = setup(); const group = await env.create();
+  assert.equal((await env.call('groups.collaboration', { groupId: group.id, revision: group.revision, enabled: 'false' })).error.code, 'INVALID_INPUT');
+  await env.ok('groups.collaboration', { groupId: group.id, revision: group.revision, enabled: false });
+  assert.equal((await env.call('groups.collaboration', { groupId: group.id, revision: group.revision, enabled: true })).error.code, 'CONFLICT');
+});
+
+test('legacy weddings without a mode retain family access', async () => {
+  const env = setup(); const group = await env.create();
+  delete env.repo.groups.get(group.id).mode;
+  assert.equal((await env.ok('groups.get', { groupId: group.id })).group.mode, 'shared');
+  const joined = (await env.ok('groups.join', { code: group.joinCode, nickname: '家人' }, 'dad')).group;
+  assert.equal(joined.mode, 'shared');
+  assert.equal((await env.save(joined, 'tasks', { title: '共同安排' }, 'dad')).tasks.at(-1).title, '共同安排');
+});
 
 test('optional profile login binds only the caller and does not gate existing members', async () => {
   const env = setup(); let group = await env.create();

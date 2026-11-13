@@ -1,19 +1,20 @@
 <template>
 <view class="container">
-  <view class="page-head"><view class="title">一家人，把喜事办妥。</view><view class="subtitle">新人、父母、帮忙的家人，一起分工，一起期待。</view></view>
-  <view v-if="state.loading" class="empty">正在同步群组…</view>
+  <view class="page-head"><view class="title">我的婚礼筹备</view><view class="subtitle">一个人就能开始，需要时再邀请家人一起安排。</view></view>
+  <view v-if="state.loading" class="empty">正在同步婚礼…</view>
   <view v-if="state.error" class="error">{{ state.error }}<button class="button-text" @tap="load">重新连接</button></view>
   <template v-if="!state.loading">
     <view v-if="!state.group || state.joinMode" class="card">
-      <view class="between"><view class="section-title">{{ state.joinMode ? '加入家人的婚礼' : '创建筹备群组' }}</view><button class="button-text" @tap="toggleJoin">{{ state.joinMode ? '我来创建' : '已有邀请码' }}</button></view>
-      <view class="field"><text class="label">家人怎么称呼你</text><input class="input" :value="(state.nickname)" data-key="nickname" @input="input" maxlength="30" placeholder="例如：小杨 / 新娘妈妈"/></view>
-      <view class="field"><text class="label">你的身份</text><picker :range="(state.roles)" :value="(state.roleIndex)" @change="roleChange"><view class="input">{{ state.roles[state.roleIndex] }} ▾</view></picker></view>
+      <view class="between"><view class="section-title">{{ state.joinMode ? '加入家人的婚礼' : '创建个人婚礼' }}</view><button class="button-text" @tap="toggleJoin">{{ state.joinMode ? '我来创建' : '已有邀请码' }}</button></view>
+      <view v-if="state.joinMode" class="field"><text class="label">家人怎么称呼你</text><input class="input" :value="(state.nickname)" data-key="nickname" @input="input" maxlength="30" placeholder="例如：小杨 / 新娘妈妈"/></view>
+      <view v-if="state.joinMode" class="field"><text class="label">你的身份</text><picker :range="(state.roles)" :value="(state.roleIndex)" @change="roleChange"><view class="input">{{ state.roles[state.roleIndex] }} ▾</view></picker></view>
       <view v-if="state.joinMode" class="field"><text class="label">家庭群组邀请码</text><input class="input" :value="(state.code)" data-key="code" @input="input" maxlength="12" placeholder="输入家人发来的 12 位邀请码"/></view>
       <template v-else><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60" placeholder="例如：我们的婚礼"/></view><view class="field"><text class="label">婚期（可以之后再定）</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择婚礼日期' }} ▾</view></picker></view></template>
-      <view class="notice">加入群组后，成员可以共同查看和编辑婚礼资料、宾客名单与筹备事项。</view><button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="createOrJoin">{{ state.joinMode ? '加入，一起筹备' : '创建我们的婚礼' }}</button>
+      <view class="notice">{{ state.joinMode ? '加入后，可与家人共同查看和编辑婚礼资料、宾客名单与筹备事项。' : '默认仅自己可访问，事项、宾客、排座和导出都可以独立使用。之后可随时开启家庭协作。' }}</view><button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="createOrJoin">{{ state.joinMode ? '加入，一起筹备' : '开始个人筹备' }}</button>
     </view>
     <template v-if="state.group && !state.joinMode">
-      <view class="card">
+      <view v-if="state.personal" class="card"><view class="section-title">个人筹备 · 仅自己可见</view><view class="muted">所有筹备功能均可独立使用。开启家庭协作后，受邀加入的成员可以查看和编辑这场婚礼的资料。</view><button v-if="state.isOwner" class="button-secondary" :disabled="state.busy" @tap="enableCollaboration">开启家庭协作</button></view>
+      <view v-else class="card">
         <view class="between"><view class="section-title">筹备家人 · {{ state.group.members.length }} 人</view><text class="chip">共同编辑</text></view>
         <view v-if="state.showLoginPrompt" class="notice login-prompt">
           <view>要不要微信登录，完善一下头像和称呼？</view><view class="muted small">可以跳过，不影响一起筹备婚礼。</view>
@@ -27,11 +28,11 @@
         </view>
         <button v-if="!state.showLoginPrompt" class="button-text login-button" :disabled="state.busy" @tap="loginAndEdit">微信登录 / 完善我的资料</button>
         <view class="muted small">头像和称呼由成员填写，仅供辨认，不代表实名验证。请将邀请码只发给认识的家人；账号标记可区分同名成员。</view>
-        <view class="divider"></view><view class="muted">邀请码 · {{ state.codeExpired ? '已过期，请群主更新' : '有效至 ' + state.expires }}</view><view class="invite-code">{{ state.group.joinCode }}</view><view class="actions"><button class="button-secondary" @tap="copyCode">复制邀请码</button><button class="button-primary" open-type="share" :disabled="state.codeExpired">邀请家人</button></view><button v-if="state.isOwner" class="button-text small" @tap="rotateCode" :disabled="state.busy">更新邀请码</button>
+        <view class="divider"></view><view class="muted">邀请码 · {{ state.codeExpired ? '已过期，请群主更新' : '有效至 ' + state.expires }}</view><view class="invite-code">{{ state.group.joinCode }}</view><view class="actions"><button class="button-secondary" @tap="copyCode">复制邀请码</button><button class="button-primary" open-type="share" :disabled="state.codeExpired">邀请家人</button></view><button v-if="state.isOwner" class="button-text small" @tap="rotateCode" :disabled="state.busy">更新邀请码</button><button v-if="state.isOwner" class="button-text" :disabled="state.busy || state.group.members.length > 1" @tap="disableCollaboration">切换为个人筹备</button><view v-if="state.isOwner && state.group.members.length > 1" class="muted small">如需切回个人筹备，请先移除其他成员。</view>
       </view>
-      <view class="card"><view class="section-title">我们的婚礼</view><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60"/></view><view class="couple-fields"><view class="field"><text class="label">新娘</text><input class="input" :value="(state.profile.bride)" data-key="bride" @input="profileInput" maxlength="30" placeholder="新娘姓名"/></view><view class="field"><text class="label">新郎</text><input class="input" :value="(state.profile.groom)" data-key="groom" @input="profileInput" maxlength="30" placeholder="新郎姓名"/></view></view><view class="field"><text class="label">婚礼日期</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择日期' }} ▾</view></picker></view><view class="field"><text class="label">场地名称</text><input class="input" :value="(state.profile.venue)" data-key="venue" @input="profileInput" maxlength="100" placeholder="酒店或婚礼场地"/></view><view class="field"><text class="label">详细地址</text><input class="input" :value="(state.profile.address)" data-key="address" @input="profileInput" maxlength="200" placeholder="亲友可按这个地址前往"/></view><view class="row"><button class="button-secondary" @tap="chooseLocation">{{ state.profile.latitude !== null ? '重新选择地图位置' : '添加地图导航' }}</button><button v-if="state.profile.latitude !== null" class="button-text" @tap="clearLocation">移除定位</button></view><view class="notice" v-if="state.profile.latitude !== null">地图位置已选好。</view></view>
+      <view class="card"><view class="section-title">婚礼资料</view><view class="field"><text class="label">婚礼名称</text><input class="input" :value="(state.profile.title)" data-key="title" @input="profileInput" maxlength="60"/></view><view class="couple-fields"><view class="field"><text class="label">新娘</text><input class="input" :value="(state.profile.bride)" data-key="bride" @input="profileInput" maxlength="30" placeholder="新娘姓名"/></view><view class="field"><text class="label">新郎</text><input class="input" :value="(state.profile.groom)" data-key="groom" @input="profileInput" maxlength="30" placeholder="新郎姓名"/></view></view><view class="field"><text class="label">婚礼日期</text><picker mode="date" :value="(state.profile.date)" data-key="date" @change="profileInput"><view class="input">{{ state.profile.date || '选择日期' }} ▾</view></picker></view><view class="field"><text class="label">场地名称</text><input class="input" :value="(state.profile.venue)" data-key="venue" @input="profileInput" maxlength="100" placeholder="酒店或婚礼场地"/></view><view class="field"><text class="label">详细地址</text><input class="input" :value="(state.profile.address)" data-key="address" @input="profileInput" maxlength="200" placeholder="亲友可按这个地址前往"/></view><view class="row"><button class="button-secondary" @tap="chooseLocation">{{ state.profile.latitude !== null ? '重新选择地图位置' : '添加地图导航' }}</button><button v-if="state.profile.latitude !== null" class="button-text" @tap="clearLocation">移除定位</button></view><view class="notice" v-if="state.profile.latitude !== null">地图位置已选好。</view></view>
       <button class="button-primary" :loading="(state.busy)" :disabled="(state.busy)" @tap="saveProfile">保存婚礼资料</button><button class="button-text" @tap="home">返回婚礼首页</button>
-      <view v-if="state.isOwner" class="card delete-section"><view class="section-title danger">删除婚礼群组</view><view class="muted">删除后所有家人将无法访问，筹备资料、宾客和云文件均会清除，旧群组邀请立即失效。此操作不可恢复，建议先导出备份。</view><button class="button-secondary danger" :disabled="state.busy" @tap="openDelete">删除此群组</button></view>
+      <view v-if="state.isOwner" class="card delete-section"><view class="section-title danger">删除婚礼档案</view><view class="muted">删除后所有家人将无法访问，筹备资料、宾客和云文件均会清除，旧群组邀请立即失效。此操作不可恢复，建议先导出备份。</view><button class="button-secondary danger" :disabled="state.busy" @tap="openDelete">删除此婚礼</button></view>
     </template>
     <view v-if="state.groups.length" class="card groups"><view class="section-title">我参与的婚礼</view><view v-for="item in state.groups" :key="item.id"><button v-if="!item.deletionPending" class="group-choice between" @tap="selectGroup" :data-id="item.id" :disabled="state.busy"><text>{{ item.title }}</text><text class="muted">{{ item.date || '婚期待定' }} ›</text></button><view v-else class="notice">群组已关闭访问，部分云文件仍待清理。<button class="button-text danger" :disabled="state.busy" :data-id="item.id" @tap="retryDeletion">重试文件清理</button></view></view></view>
   </template>
@@ -75,8 +76,8 @@ onLoad(options) { if (options.code)
 onShow() { this.load(); },
 async onPullDownRefresh() { await this.load(); wx.stopPullDownRefresh(); },
 onShareAppMessage() {
-    if (!this.state.group)
-        return { title: '喜事妥妥，一家人一起筹备婚礼', path: '/pages/home/index' };
+    if (!this.state.group || this.state.personal)
+        return { title: '喜事妥妥，把婚礼安排妥当', path: '/pages/home/index' };
     return { title: '邀请你一起筹备：' + this.state.group.profile.title, path: '/pages/group/index?code=' + this.state.group.joinCode };
 },
  methods: {
@@ -200,7 +201,7 @@ applyGroup(group, resetForm = false) {
     const selfMember = group.members.find(entry => entry.id === group.selfId);
     const dismissed = typeof wx.getStorageSync === 'function' && wx.getStorageSync('xishi-tuotuo:profile-prompt:' + group.id);
     const patch: Record<string, any> = { group, isOwner: group.ownerId === group.selfId,
-        selfMember, showLoginPrompt: !selfMember?.profileLoginAt && !dismissed,
+        personal: group.mode === 'personal', selfMember, showLoginPrompt: !selfMember?.profileLoginAt && !dismissed,
         expires: new Date(group.joinCodeExpiresAt).toLocaleDateString(), codeExpired: group.joinCodeExpiresAt < Date.now() };
     if (!this.runtime._dirty || resetForm) {
         this.runtime._profileRevision = group.revision;
@@ -230,16 +231,16 @@ toggleJoin() { updateState(this.state, { joinMode: !this.state.joinMode }); },
 async createOrJoin() {
     if (this.state.busy)
         return;
-    if (!this.state.nickname.trim())
+    if (this.state.joinMode && !this.state.nickname.trim())
         return service.showError(new Error('先填写家人怎么称呼你'));
     updateState(this.state, { busy: true });
     try {
-        const payload = { nickname: this.state.nickname.trim(), role: this.state.roles[this.state.roleIndex] };
+        const payload = { nickname: this.state.joinMode ? this.state.nickname.trim() : '我', role: this.state.joinMode ? this.state.roles[this.state.roleIndex] : '家人' };
         const data = this.state.joinMode ? await service.call('groups.join', { ...payload, code: this.state.code.trim() }) : await service.call('groups.create', { ...payload, profile: this.state.profile });
         service.setGroup(data.group);
         updateState(this.state, { joinMode: false });
         this.applyGroup(data.group);
-        wx.showToast({ title: '一起开始筹备吧', icon: 'success' });
+        wx.showToast({ title: this.state.group.mode === 'personal' ? '个人婚礼已创建' : '已加入家庭协作', icon: 'success' });
         wx.reLaunch({ url: '/pages/home/index' });
     }
     catch (error) {
@@ -304,7 +305,21 @@ chooseLocation() {
             service.showError(new Error('未能选择地图位置，可先填写详细地址')); } });
 },
 clearLocation() { this.runtime._dirty = true; updateState(this.state, { 'profile.latitude': null, 'profile.longitude': null }); },
-copyCode() { wx.setClipboardData({ data: this.state.group.joinCode }); },
+copyCode() { if (!this.state.personal && this.state.group?.joinCode) wx.setClipboardData({ data: this.state.group.joinCode }); },
+async enableCollaboration() { await this.setCollaboration(true); },
+async disableCollaboration() { await this.setCollaboration(false); },
+async setCollaboration(enabled) {
+    if (this.state.busy || !this.state.isOwner) return;
+    const message = enabled ? '开启后，受邀加入的家人可查看和编辑现有的婚礼资料、宾客及筹备记录。是否开启？' : '切换后仅自己可访问，旧邀请码立即失效，已有筹备资料保留。是否继续？';
+    if (!await service.confirm(message)) return;
+    this.state.busy = true;
+    try {
+        const data = await service.mutate('groups.collaboration', { enabled }, this.state.group.revision);
+        this.applyGroup(data.group);
+        wx.showToast({ title: enabled ? '家庭协作已开启' : '已切换为个人筹备', icon: 'success' });
+    } catch (error) { service.showError(error); }
+    finally { this.state.busy = false; }
+},
 async rotateCode() {
     if (this.state.busy || !await service.confirm('更新后，之前分享的群组邀请将失效，已加入的家人不受影响。'))
         return;

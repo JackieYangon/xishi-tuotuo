@@ -55,6 +55,7 @@ function assertSize(group) {
   if (Buffer.byteLength(JSON.stringify(group), 'utf8') > MAX_DOCUMENT_BYTES) fail('LIMIT_REACHED', '本群组资料已接近容量上限，请先导出并精简不需要的内容');
 }
 function member(group, userId) {
+  if (group && group.mode === 'personal' && group.ownerId !== userId) fail('FORBIDDEN', '此婚礼为个人筹备，仅创建者可访问');
   if (group && group.status) fail('GROUP_DELETED', '此婚礼群组已删除，无法继续访问');
   if (!group || !group.members.some(entry => entry.id === userId)) fail('FORBIDDEN', '你不是此筹备群组的成员');
 }
@@ -63,6 +64,7 @@ function revision(group, expected) {
 }
 function privateGroup(group, userId) {
   const result = clone(group);
+  result.mode = group.mode || 'shared';
   result.profile = cleanProfile(result.profile);
   result.guests.forEach(guest => { delete guest.replyNote; });
   delete result._id;
@@ -231,7 +233,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         if ((await repo.listForMember(userId)).length >= 20) fail('LIMIT_REACHED', '最多加入 20 个筹备群组');
         const stamp = now();
         const group = {
-          id: randomId(), revision: 1, ownerId: userId, joinCode: random(6).toUpperCase(), joinCodeExpiresAt: stamp + 7 * DAY,
+          id: randomId(), revision: 1, ownerId: userId, mode: 'personal', joinCode: '', joinCodeExpiresAt: 0,
           profile: profile(payload.profile || {}, { title: '我们的婚礼', bride: '', groom: '', date: '', venue: '', address: '', latitude: null, longitude: null }),
           members: [{ id: userId, nickname, role }], memberIds: [userId], media: [],
           tasks: [], items: [], vendors: [], guests: [], tables: [], timeline: [], lodgings: [], createdAt: stamp, updatedAt: stamp
@@ -240,6 +242,14 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         assertSize(group);
         await repo.create(group);
         data = { group: privateGroup(group, userId) };
+      } else if (event.action === 'groups.collaboration') {
+        if (typeof payload.enabled !== 'boolean') fail('INVALID_INPUT', '请选择是否开启家庭协作');
+        data = await mutate(payload, userId, group => {
+          if (!payload.enabled && group.members.some(entry => entry.id !== userId)) fail('MEMBERS_REMAIN', '请先移除其他成员，再切换为个人筹备');
+          group.mode = payload.enabled ? 'shared' : 'personal';
+          group.joinCode = payload.enabled ? random(6).toUpperCase() : '';
+          group.joinCodeExpiresAt = payload.enabled ? now() + 7 * DAY : 0;
+        }, true);
       } else if (event.action === 'groups.join') {
         const code = text(payload.code, '群组邀请码', 12, true).toUpperCase();
         if (!/^[A-F0-9]{12}$/.test(code)) fail('INVALID_CODE', '群组邀请码不正确或已过期');
@@ -248,7 +258,7 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
         const match = await repo.findByJoinCode(code);
         if (!match) fail('INVALID_CODE', '群组邀请码不正确或已过期');
         data = await repo.transact(match.id, async group => {
-          if (!group || group.status || group.joinCode !== code || group.joinCodeExpiresAt < now()) fail('INVALID_CODE', '群组邀请码不正确或已过期');
+          if (!group || group.status || group.mode === 'personal' || group.joinCode !== code || group.joinCodeExpiresAt < now()) fail('INVALID_CODE', '群组邀请码不正确或已过期');
           if (group.members.some(entry => entry.id === userId)) return { group, result: { group: privateGroup(group, userId) } };
           if (group.members.length >= 30) fail('LIMIT_REACHED', '一个筹备群组最多 30 位成员');
           group.members.push({ id: userId, nickname, role });
@@ -320,7 +330,10 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
       } else if (event.action === 'groups.profile') {
         data = await mutate(payload, userId, group => { group.profile = profile(payload.profile, group.profile); });
       } else if (event.action === 'groups.rotateCode') {
-        data = await mutate(payload, userId, group => { group.joinCode = random(6).toUpperCase(); group.joinCodeExpiresAt = now() + 7 * DAY; }, true);
+        data = await mutate(payload, userId, group => {
+          if (group.mode === 'personal') fail('COLLABORATION_DISABLED', '请先开启家庭协作');
+          group.joinCode = random(6).toUpperCase(); group.joinCodeExpiresAt = now() + 7 * DAY;
+        }, true);
       } else if (event.action === 'groups.removeMember') {
         let removedAvatar;
         data = await mutate(payload, userId, group => {

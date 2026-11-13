@@ -44,6 +44,38 @@ function group(revision, changes = {}) {
 }
 const input = (key, value) => ({ currentTarget: { dataset: { key } }, detail: { value } });
 
+test('personal creation needs no family profile and shares no private title or invitation', async () => {
+  let payload;
+  const personal = { ...group(1), mode: 'personal', joinCode: '', joinCodeExpiresAt: 0 };
+  const { page } = pageHarness('src/pages/group/index.vue', {
+    async call(action, value) { assert.equal(action, 'groups.create'); payload = value; return { group: personal }; },
+    setGroup() {}, showError(error) { throw error; }
+  });
+  await page.createOrJoin();
+  assert.equal(payload.nickname, '我');
+  assert.equal(page.state.personal, true);
+  assert.equal(page.onShareAppMessage().path, '/pages/home/index');
+  assert.ok(!page.onShareAppMessage().title.includes(personal.profile.title));
+});
+
+test('collaboration toggle respects confirmation and uses the latest revision', async () => {
+  let confirmed = false; let calls = 0;
+  const personal = { ...group(4), mode: 'personal', joinCode: '' };
+  const { page } = pageHarness('src/pages/group/index.vue', {
+    async confirm() { return confirmed; },
+    async mutate(action, payload, revision) {
+      calls++; assert.equal(action, 'groups.collaboration'); assert.equal(payload.enabled, true); assert.equal(revision, 4);
+      return { group: { ...personal, mode: 'shared', revision: 5, joinCode: 'ABCDEF123456' } };
+    }, showError(error) { throw error; }
+  });
+  page.applyGroup(personal);
+  await page.enableCollaboration(); assert.equal(calls, 0);
+  confirmed = true;
+  await page.enableCollaboration(); assert.equal(calls, 1);
+  assert.equal(page.state.personal, false);
+  assert.equal(page.onShareAppMessage().path, '/pages/group/index?code=ABCDEF123456');
+});
+
 test('existing members can dismiss optional login and later open their own profile', async () => {
   const saved = [];
   const current = group(1);

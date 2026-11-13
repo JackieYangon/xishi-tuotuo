@@ -6,9 +6,9 @@
   </view>
   <view v-if="state.loading" class="card empty">正在整理婚礼资料…</view>
   <view v-else-if="state.noGroup" class="card empty">
-    <view class="title">先加入婚礼筹备</view>
-    <view>创建或加入群组后，就能导出大家的安排。</view>
-    <button class="button-primary export-start" @tap="goGroup">前往筹备群组</button>
+    <view class="title">先创建或选择婚礼</view>
+    <view>开始筹备后，就能导出婚礼安排。</view>
+    <button class="button-primary export-start" @tap="goGroup">开始筹备</button>
   </view>
   <view v-else-if="state.error" class="card">
     <view class="error">{{ state.error }}</view>
@@ -30,7 +30,7 @@
         <switch color="#954b50" :checked="(state.includePhones)" data-key="includePhones" :disabled="(state.generating)" @change="onPrivacy" />
       </view>
       <view class="between export-switch">
-        <view><view>包含内部备注</view><view class="muted small">群组成员填写的筹备说明</view></view>
+        <view><view>包含内部备注</view><view class="muted small">筹备过程中填写的说明</view></view>
         <switch color="#954b50" :checked="(state.includeNotes)" data-key="includeNotes" :disabled="(state.generating)" @change="onPrivacy" />
       </view>
       <view class="notice">默认不包含电话和备注，发送前可按接收人的需要选择。</view>

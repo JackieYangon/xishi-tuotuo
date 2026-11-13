@@ -1,7 +1,7 @@
 <h1 align="center">Xishi Tuotuo</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-00866a?style=flat-square" />
+  <img alt="version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -9,7 +9,7 @@
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" /></a>
 </p>
 <!-- badges:end -->
-<p align="center"><b>Plan your wedding together, as a family.</b><br />A collaborative wedding planner built with Vue 3, TypeScript, uni-app and WeChat Cloud Development.</p>
+<p align="center"><b>Plan on your own, or together with family.</b><br />A collaborative wedding planner built with Vue 3, TypeScript, uni-app and WeChat Cloud Development.</p>
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 <p align="center"><a href="#features">Features</a> · <a href="#getting-started">Getting started</a> · <a href="#local-development">Local development</a> · <a href="#cloud-deployment">Cloud deployment</a></p>
 
@@ -18,7 +18,7 @@
 | Feature | What it does |
 | --- | --- |
 | Wedding overview | Keep names, date and venue together; view the countdown and progress calculated from completed tasks divided by all tasks. |
-| Family collaboration | Invite the couple and parents into one planning group to share information and arrangements. Each group plans one wedding. |
+| Usage modes | Start in personal mode without an invitation code. The owner can enable family collaboration for the same wedding. |
 | Planning tasks | Add, assign and complete tasks, set due dates and work through preparation stages. |
 | Supplies | Organize wedding items, quantities and preparation status. |
 | Vendors | Keep contact details, quotes, discussion notes and booking status together. |
@@ -30,15 +30,17 @@
 
 ## Getting started
 
-1. Create a wedding planning group and enter the couple's names, wedding date and venue.
-2. Invite your partner and parents to maintain tasks and supplies together.
+1. Create a personal wedding, accessible only to you by default. Enter the date and venue; other details can be added later.
+2. Use all planning features independently. When needed, enable family collaboration in Wedding Settings and share the invitation code. Members can view and edit the existing wedding information.
 3. Organize vendors, guests and accommodation; update attendance based on your conversations with guests.
 4. Choose table capacities, assign guests in the round-table view and prepare the wedding-day timeline.
 5. Export information when needed for family members and on-site helpers.
 
-The owner can permanently delete a wedding from the bottom of the family group page by typing its full title. This clears planning data, members, guests and cloud files, and revokes group invitations. Export anything you need beforehand. If cloud-file cleanup fails, the owner can retry from the wedding list. Previously exported, downloaded or forwarded copies cannot be recalled. The server retains only a minimal deletion marker without wedding or guest details for duplicate requests and cleanup recovery.
+The owner can permanently delete a wedding from the bottom of Wedding Settings by typing its full title. This clears planning data, members, guests and cloud files, and revokes group invitations. Export anything you need beforehand. If cloud-file cleanup fails, the owner can retry from the wedding list. Previously exported, downloaded or forwarded copies cannot be recalled. The server retains only a minimal deletion marker without wedding or guest details for duplicate requests and cleanup recovery.
 
 Family members can edit their own group name, wedding role and avatar. Owners may edit other members' group names and roles, but only the person concerned can select their avatar. Existing members may choose optional WeChat login and profile completion or skip it without losing access, and return to it later. Avatars are actively selected and WeChat nickname suggestions are optional; personal profile information is not fetched automatically. Membership remains tied to the WeChat account. Stable account labels distinguish members with identical names, but avatars and names are not real-name verification. Invitation codes still allow direct joining without owner approval.
+
+After removing other members, the owner can return to personal mode without losing planning data. Old invitation codes become invalid; enabling collaboration again creates a new code. Existing family groups remain collaborative. Deploy the updated `xishiTuotuoApi` cloud function before using the new client and its mode switch.
 
 ## Local development
 
@@ -91,7 +93,7 @@ The project can use a shared cloud environment. Dedicated resource names and ser
 1. Set this mini program's AppID and the full target environment ID in `.env.local`. For an environment shared by another mini program, complete the owner's authorization and set `CLOUD_RESOURCE_APPID`, then run `npm run setup`.
 2. Create the `xishi_tuotuo_groups` collection in the target environment and set its permissions to **administrator-only read and write**. Clients access data through the cloud function, never directly.
 3. In WeChat DevTools, right-click `cloudfunctions/xishiTuotuoApi` and select **Upload and deploy: install dependencies in the cloud**. Confirm the target environment. Deploy only this function, including its generated `local-config.json`.
-4. Compile the mini program, create a group and invite collaborators to join using their own WeChat accounts.
+4. Compile the mini program and create a personal wedding to start planning. When collaboration is needed, the owner enables family collaboration and invites members to join using their own WeChat accounts.
 
 The cloud function obtains identity from the WeChat runtime context and checks the mini program AppID and group membership. Client-supplied user identifiers are not trusted identities.
 

@@ -10,7 +10,7 @@
     {
       "path": "pages/group/index",
       "style": {
-        "navigationBarTitleText": "家庭筹备群组",
+        "navigationBarTitleText": "婚礼设置",
         "enablePullDownRefresh": true
       }
     },

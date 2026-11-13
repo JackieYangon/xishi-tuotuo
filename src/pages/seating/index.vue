@@ -7,9 +7,9 @@
   </view>
   <view v-if="state.loading && !state.tables.length" class="card empty">正在整理圆桌与宾客…</view>
   <view v-else-if="state.error" class="card empty">
-    <view class="error-title">{{ state.noGroup ? '先加入筹备群组' : '暂时没有连接上' }}</view>
+    <view class="error-title">{{ state.noGroup ? '先创建或选择婚礼' : '暂时没有连接上' }}</view>
     <view class="muted error-description">{{ state.error }}</view>
-    <button v-if="state.noGroup" class="button-primary" @tap="goGroup">创建或加入群组</button>
+    <button v-if="state.noGroup" class="button-primary" @tap="goGroup">开始筹备</button>
     <button v-else class="button-secondary" @tap="load">重新加载</button>
   </view>
   <template v-else>

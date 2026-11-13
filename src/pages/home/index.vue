@@ -1,17 +1,17 @@
 <template>
 <view class="container">
-  <view class="between brand"><view><text class="brand-name">喜事妥妥</text><view class="muted">一家人，一起把喜事办妥</view></view><button class="family-button" @tap="group">家庭群组 ›</button></view>
+  <view class="between brand"><view><text class="brand-name">喜事妥妥</text><view class="muted">把婚礼安排妥当</view></view><button class="family-button" @tap="group">婚礼设置 ›</button></view>
   <view v-if="state.loading" class="empty">正在取回婚礼安排…</view>
-  <view v-else-if="state.error" class="card empty"><view class="title">暂时未能同步</view><view>{{ state.error }}</view><view class="actions"><button class="button-secondary" @tap="group">选择群组</button><button class="button-primary" @tap="load">再试一次</button></view></view>
+  <view v-else-if="state.error" class="card empty"><view class="title">暂时未能同步</view><view>{{ state.error }}</view><view class="actions"><button class="button-secondary" @tap="group">选择婚礼</button><button class="button-primary" @tap="load">再试一次</button></view></view>
   <view v-else-if="!state.group" class="welcome">
-    <view class="welcome-seal">囍</view><view class="title"><view>从今天起，</view><view>好好准备我们的婚礼。</view></view><view class="subtitle"><view>邀请另一半和父母，</view><view>一起安排每一件值得期待的小事。</view></view><button class="button-primary" @tap="group">创建或加入婚礼群组</button>
+    <view class="welcome-seal">囍</view><view class="title"><view>从今天起，</view><view>好好准备我们的婚礼。</view></view><view class="subtitle"><view>一个人就能开始筹备，</view><view>也可以邀请家人一起安排。</view></view><button class="button-primary" @tap="group">开始筹备</button>
     <view class="welcome-features">备婚事项 · 宾客安排 · 圆桌排座 · 当天流程</view>
   </view>
   <template v-else>
     <view class="hero"><view class="hero-decoration">囍</view><text class="eyebrow">OUR WEDDING</text><view class="couple">{{ state.group.profile.bride || '新娘' }}<text class="amp"> &amp; </text>{{ state.group.profile.groom || '新郎' }}</view><view class="hero-date">{{ state.group.profile.date || '婚期还在商量中' }} · {{ state.group.profile.venue || '一起期待好日子' }}</view><view class="countdown"><text>{{ state.daysLabel }}</text><view v-if="state.showDays"><text class="days">{{ state.days }}</text><text> 天</text></view></view></view>
     <view class="card progress-card" @tap="tasks"><view class="between"><view><view class="section-title">筹备进度</view><view class="muted">已完成 {{ state.stats.done }} / {{ state.stats.total }} 件事项</view></view><view class="progress-number">{{ state.stats.percent }}<text>%</text></view></view><view class="progress-track"><view class="progress-fill" :style="'width: ' + (state.stats.percent) + '%;'"></view></view><view class="muted small">每完成一件，离安心的婚礼就近一步</view></view>
-    <view class="mini-stats"><view><text>{{ state.group.members.length }}</text> 位家人一起筹备</view><view><text>{{ state.confirmed }}</text> 位亲友确认出席</view></view>
-    <view class="between"><view class="section-title">一起准备</view><text class="muted">重要的事，都在这里</text></view>
+    <view class="mini-stats"><view v-if="state.group.mode === 'personal'">个人筹备 · 仅自己可见</view><view v-else><text>{{ state.group.members.length }}</text> 位家人一起筹备</view><view><text>{{ state.confirmed }}</text> 位亲友确认出席</view></view>
+    <view class="between"><view class="section-title">筹备安排</view><text class="muted">重要的事，都在这里</text></view>
     <view class="module-grid"><view class="module" v-for="(item, index) in state.modules" :key="item.title" :data-index="(index)" @tap="openModule"><view class="module-icon">{{ item.icon }}</view><view class="module-title">{{ item.title }}</view><view class="module-subtitle">{{ item.subtitle }}</view></view></view>
     <view class="between"><view class="section-title">接下来做什么</view><button class="button-text" @tap="tasks">查看全部 ›</button></view><view class="card upcoming"><view v-if="!state.upcoming.length" class="empty">事项都安排好了，给彼此一个拥抱吧。</view><view v-for="(item, index) in state.upcoming" :key="item.id" class="task-row" @tap="tasks"><view class="task-dot"></view><view class="task-main"><view>{{ item.title }}</view><view class="muted">{{ item.dueDate || '时间待定' }} · {{ item.assignee }}</view></view><text class="muted">›</text></view></view>
   </template>

@@ -1,7 +1,7 @@
 <h1 align="center">喜事妥妥</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-00866a?style=flat-square" />
+  <img alt="version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -9,7 +9,7 @@
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" /></a>
 </p>
 <!-- badges:end -->
-<p align="center"><b>一家人，把婚礼安排妥当。</b><br />基于 Vue 3、TypeScript、uni-app 与微信云开发的家庭协作备婚工具。</p>
+<p align="center"><b>一个人能用，一家人也能一起筹备。</b><br />基于 Vue 3、TypeScript、uni-app 与微信云开发的家庭协作备婚工具。</p>
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
 <p align="center"><a href="#主要功能">功能介绍</a> · <a href="#开始使用">开始使用</a> · <a href="#本地开发">本地开发</a> · <a href="#云开发部署">云开发部署</a></p>
 
@@ -18,7 +18,7 @@
 | 功能 | 用途 |
 | --- | --- |
 | 婚礼首页 | 管理新人、婚期和地点，查看倒计时与筹备进度；进度按已完成事项占全部事项的比例计算。 |
-| 家庭协作 | 新人和父母加入同一个筹备群组，共享婚礼资料、事项及安排；每个群组筹备一场婚礼。 |
+| 使用方式 | 默认个人筹备，不生成邀请码；可由创建者开启家庭协作，共享同一场婚礼的资料、事项及安排。 |
 | 筹备事项 | 添加、分配和完成事项，记录截止日期，按准备阶段推进。 |
 | 物品清单 | 整理婚礼用品、数量及准备状态。 |
 | 商家记录 | 集中保存商家联系方式、报价、沟通备注和预订状态。 |
@@ -30,15 +30,17 @@
 
 ## 开始使用
 
-1. 创建婚礼筹备群组，填写新人姓名、婚期和场地。
-2. 邀请另一半与父母加入，共同维护事项和物品清单。
+1. 创建个人婚礼，默认仅自己可访问；填写婚期和场地，其他资料可以稍后补充。
+2. 独立使用全部筹备功能；需要家人帮忙时，在「婚礼设置」主动开启家庭协作，再分享邀请码。加入的成员可查看、编辑现有筹备资料。
 3. 整理商家、宾客和住宿信息，根据与亲友的沟通结果更新出席安排。
 4. 设置每桌人数，在圆桌视图安排宾客，补充婚礼当天流程。
 5. 根据需要导出资料，让家人和现场工作人员查阅。
 
-群主可在「家庭群组」底部删除婚礼群组，需完整输入婚礼名称确认。删除不可恢复，会清空筹备资料、成员、宾客和云文件，并使旧群组邀请失效；请提前导出所需资料。云文件清理失败时，群主可在「我参与的婚礼」重试清理。已经导出、下载或转发的副本无法撤回。云端仅保留不含婚礼和宾客资料的最小删除标记，用于重复请求和失败清理。
+创建者可在「婚礼设置」底部删除婚礼群组，需完整输入婚礼名称确认。删除不可恢复，会清空筹备资料、成员、宾客和云文件，并使旧群组邀请失效；请提前导出所需资料。云文件清理失败时，群主可在「我参与的婚礼」重试清理。已经导出、下载或转发的副本无法撤回。云端仅保留不含婚礼和宾客资料的最小删除标记，用于重复请求和失败清理。
 
 「筹备家人」支持修改自己的群内称呼、身份和头像；群主也能修改其他成员的群内称呼和身份，头像只能本人选择。现有成员可选择「微信登录并完善资料」或「暂不登录」，跳过不影响筹备功能，以后也可以再次登录。头像需主动选择，昵称可使用微信提供的快捷填写；不会自动读取个人资料。成员始终通过微信账号识别，账号标记用于区分同名成员，头像和称呼不代表实名验证。入群仍使用邀请码，不增加群主审核。
+
+创建者可在移除其他成员后切回个人筹备，原有资料保留，旧邀请码立即失效。再次开启协作会生成新邀请码。已有家庭群组继续保持协作模式。使用新版客户端和模式切换前，需先部署更新后的 `xishiTuotuoApi` 云函数。
 
 ## 本地开发
 
@@ -91,7 +93,7 @@ npm run check
 1. 在 `.env.local` 填入本小程序的 AppID 和目标完整环境 ID。跨小程序共享环境时，先完成资源方授权并填写 `CLOUD_RESOURCE_APPID`，然后运行 `npm run setup`。
 2. 在目标环境创建 `xishi_tuotuo_groups` 集合，权限设为**仅管理员可读写**。客户端通过云函数操作数据，不直接读写集合。
 3. 在微信开发者工具中，右键 `cloudfunctions/xishiTuotuoApi`，选择**上传并部署：云端安装依赖**，确认目标环境。仅部署这个函数，并包含本地生成的 `local-config.json`。
-4. 编译小程序，创建群组并邀请协作成员，在各自微信账号下使用。
+4. 编译小程序，创建个人婚礼即可使用；需要多人协作时，由创建者开启家庭协作，再邀请成员在各自微信账号下加入。
 
 云函数从微信运行上下文取得身份，并核对本小程序 AppID 和群组成员权限。请勿将客户端传入的用户标识当作可信身份。
 
