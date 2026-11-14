@@ -6,7 +6,7 @@
 
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.3.2" src="https://img.shields.io/badge/version-2.3.2-00866a?style=flat-square" />
+  <img alt="version 2.3.3" src="https://img.shields.io/badge/version-2.3.3-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -27,14 +27,14 @@
 
 <p align="center">演示使用虚构数据；小程序界面目前为中文。</p>
 
-<table align="center">
+<table align="center" width="100%">
   <tr>
-    <td width="50%" align="center" valign="top">
+    <td width="500" align="center" valign="top">
       <b>宾客与批量修改</b><br />
       <sub>每页 10 组，集中更新出席与住宿状态</sub><br /><br />
       <a href="docs/assets/guests-demo.gif" title="点击查看完整动图"><img src="docs/assets/guests-demo.gif" width="300" alt="宾客列表翻页及批量修改状态演示" /></a>
     </td>
-    <td width="50%" align="center" valign="top">
+    <td width="500" align="center" valign="top">
       <b>圆桌排座</b><br />
       <sub>安排待入座亲友，清楚查看桌位余量</sub><br /><br />
       <a href="docs/assets/seating-demo.gif" title="点击查看完整动图"><img src="docs/assets/seating-demo.gif" width="300" alt="未排座宾客选择及圆桌安排演示" /></a>
@@ -44,18 +44,56 @@
 
 ## 主要功能
 
-| 功能 | 可以做什么 |
-| --- | --- |
-| 婚礼总览 | 记录新人、婚期和地点，查看倒计时与按事项完成比例计算的筹备进度。 |
-| 个人与家庭协作 | 默认独立筹备；需要时由创建者开启家庭协作，共同管理同一场婚礼。 |
-| 筹备事项 | 添加、分配和完成事项，记录截止日期，按准备阶段推进。 |
-| 物品清单 | 整理婚礼用品、数量和准备状态。 |
-| 商家记录 | 集中保存联系方式、报价、沟通备注和预订状态。 |
-| 亲友宾客 | 每页 10 组，支持翻页、选页和搜索筛选；跨页勾选或全选筛选结果，批量修改出席、住宿和亲友分组。 |
-| 圆桌排座 | 支持 10 人桌、12 人桌及自定义容量；只选择未排座亲友和余位足够的桌子，直观查看座位。 |
-| 当天流程 | 按时间整理各个环节、负责人和注意事项。 |
-| 住宿安排 | 从需要住宿的亲友中选择人员，记录酒店、房间和入住安排。 |
-| 数据导出 | 导出 XLSX 筹备资料，用于备份、打印和交接。 |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">功能</th>
+      <th width="680" align="center">可以做什么</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">婚礼总览</td>
+      <td align="left" valign="middle">记录新人、婚期和地点，查看倒计时与按事项完成比例计算的筹备进度。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">个人与家庭协作</td>
+      <td align="left" valign="middle">默认独立筹备；需要时由创建者开启家庭协作，共同管理同一场婚礼。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">筹备事项</td>
+      <td align="left" valign="middle">添加、分配和完成事项，记录截止日期，按准备阶段推进。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">物品清单</td>
+      <td align="left" valign="middle">整理婚礼用品、数量和准备状态。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">商家记录</td>
+      <td align="left" valign="middle">集中保存联系方式、报价、沟通备注和预订状态。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">亲友宾客</td>
+      <td align="left" valign="middle">每页 10 组，支持翻页、选页和搜索筛选；跨页勾选或全选筛选结果，批量修改出席、住宿和亲友分组。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">圆桌排座</td>
+      <td align="left" valign="middle">支持 10 人桌、12 人桌及自定义容量；只选择未排座亲友和余位足够的桌子，直观查看座位。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">当天流程</td>
+      <td align="left" valign="middle">按时间整理各个环节、负责人和注意事项。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">住宿安排</td>
+      <td align="left" valign="middle">从需要住宿的亲友中选择人员，记录酒店、房间和入住安排。</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">数据导出</td>
+      <td align="left" valign="middle">导出 XLSX 筹备资料，用于备份、打印和交接。</td>
+    </tr>
+  </tbody>
+</table>
 
 ## 开始使用
 
@@ -113,14 +151,40 @@ npm run build:mp-weixin
 
 用微信开发者工具导入仓库根目录。生成的 `project.config.json` 将小程序目录指向 `dist/build/mp-weixin/`，云函数目录指向 `cloudfunctions/`。
 
-| 命令 | 用途 |
-| --- | --- |
-| `npm run build:mp-weixin` | 构建生产版小程序 |
-| `npm run dev:mp-weixin` | 持续编译开发版小程序 |
-| `npm run setup` | 生成本地配置和版本模块 |
-| `npm test` | 运行自动化测试 |
-| `npm run type-check` | 检查 TypeScript 类型 |
-| `npm run check` | 检查语法、配置和页面完整性 |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">命令</th>
+      <th width="680" align="center">用途</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle"><code>npm run build:mp-weixin</code></td>
+      <td align="left" valign="middle">构建生产版小程序</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run dev:mp-weixin</code></td>
+      <td align="left" valign="middle">持续编译开发版小程序</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run setup</code></td>
+      <td align="left" valign="middle">生成本地配置和版本模块</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm test</code></td>
+      <td align="left" valign="middle">运行自动化测试</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run type-check</code></td>
+      <td align="left" valign="middle">检查 TypeScript 类型</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run check</code></td>
+      <td align="left" valign="middle">检查语法、配置和页面完整性</td>
+    </tr>
+  </tbody>
+</table>
 
 编辑 `src/pages/` 下的 `.vue` 页面后重新构建。持续开发会自动切换到 `dist/dev/mp-weixin/`，生产构建会恢复生产目录；切换模式后重新打开开发者工具项目。不要编辑或提交 `dist/` 中的编译结果。
 
@@ -128,11 +192,28 @@ npm run build:mp-weixin
 
 在 `.env.local` 中填写：
 
-| 配置项 | 填写说明 |
-| --- | --- |
-| `WECHAT_APPID` | 本小程序的 AppID |
-| `CLOUD_ENV_ID` | 云开发控制台显示的**完整环境 ID**，不能使用环境昵称 |
-| `CLOUD_RESOURCE_APPID` | 共享环境所属小程序的 AppID；使用本小程序自己的环境时留空 |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">配置项</th>
+      <th width="680" align="center">填写说明</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle"><code>WECHAT_APPID</code></td>
+      <td align="left" valign="middle">本小程序的 AppID</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>CLOUD_ENV_ID</code></td>
+      <td align="left" valign="middle">云开发控制台显示的<strong>完整环境 ID</strong>，不能使用环境昵称</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>CLOUD_RESOURCE_APPID</code></td>
+      <td align="left" valign="middle">共享环境所属小程序的 AppID；使用本小程序自己的环境时留空</td>
+    </tr>
+  </tbody>
+</table>
 
 跨小程序使用共享环境时，先由**资源方在云开发控制台授权本小程序访问**，再填写资源方 AppID。不要交换 `WECHAT_APPID` 和 `CLOUD_RESOURCE_APPID`，同一个 AppID 不需要填写两次。
 
@@ -156,11 +237,28 @@ npm run check
 
 可使用本小程序自己的环境或共享云开发环境，通过独立资源命名与云端身份校验隔离婚礼数据。
 
-| 资源 | 本项目名称 |
-| --- | --- |
-| 云函数 | `xishiTuotuoApi` |
-| 数据库集合 | `xishi_tuotuo_groups` |
-| 云存储目录前缀 | `xishi-tuotuo/` |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">资源</th>
+      <th width="680" align="center">本项目名称</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">云函数</td>
+      <td align="left" valign="middle"><code>xishiTuotuoApi</code></td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">数据库集合</td>
+      <td align="left" valign="middle"><code>xishi_tuotuo_groups</code></td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">云存储目录前缀</td>
+      <td align="left" valign="middle"><code>xishi-tuotuo/</code></td>
+    </tr>
+  </tbody>
+</table>
 
 1. **准备配置。** 填写 `.env.local`。跨小程序共享环境时先完成资源方授权并填写 `CLOUD_RESOURCE_APPID`，然后运行 `npm run setup`。
 2. **创建集合。** 在目标环境创建 `xishi_tuotuo_groups`，权限设为**仅管理员可读写**。客户端通过云函数操作数据，不直接读写集合。

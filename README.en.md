@@ -6,7 +6,7 @@
 
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.3.2" src="https://img.shields.io/badge/version-2.3.2-00866a?style=flat-square" />
+  <img alt="version 2.3.3" src="https://img.shields.io/badge/version-2.3.3-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -27,14 +27,14 @@
 
 <p align="center">Demos use fictional data. The mini program interface is currently in Chinese.</p>
 
-<table align="center">
+<table align="center" width="100%">
   <tr>
-    <td width="50%" align="center" valign="top">
+    <td width="500" align="center" valign="top">
       <b>Guests &amp; bulk updates</b><br />
       <sub>Browse 10 records per page and update guest statuses together</sub><br /><br />
       <a href="docs/assets/guests-demo.gif" title="View the full-size animation"><img src="docs/assets/guests-demo.gif" width="300" alt="Guest pagination and bulk status updates demonstration" /></a>
     </td>
-    <td width="50%" align="center" valign="top">
+    <td width="500" align="center" valign="top">
       <b>Round-table seating</b><br />
       <sub>Seat unassigned guests and see available table capacity</sub><br /><br />
       <a href="docs/assets/seating-demo.gif" title="View the full-size animation"><img src="docs/assets/seating-demo.gif" width="300" alt="Unassigned guest selection and round-table seating demonstration" /></a>
@@ -44,18 +44,56 @@
 
 ## Features
 
-| Feature | What you can do |
-| --- | --- |
-| Wedding overview | Keep names, date and venue together; view the countdown and progress based on the proportion of completed tasks. |
-| Personal & family modes | Start on your own, then let the owner enable family collaboration for the same wedding. |
-| Planning tasks | Add, assign and complete tasks, set due dates and work through preparation stages. |
-| Supplies | Organize wedding items, quantities and preparation status. |
-| Vendors | Keep contact details, quotes, discussion notes and booking status together. |
-| Guests | Browse 10 guest or family records per page, jump between pages, and search or filter the list. Select across pages or all filtered results to update attendance, accommodation needs and guest groups in bulk. |
-| Round-table seating | Use 10 seats, 12 seats or a custom capacity. Select only unassigned guests and tables with enough room, and view their seats. |
-| Wedding-day timeline | Plan times, responsible people and notes for each part of the day. |
-| Accommodation | Select guests who need accommodation, then organize hotels, rooms and stays. |
-| Data export | Export planning information as XLSX files for backups, printing and handovers. |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">Feature</th>
+      <th width="680" align="center">What you can do</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">Wedding overview</td>
+      <td align="left" valign="middle">Keep names, date and venue together; view the countdown and progress based on the proportion of completed tasks.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Personal &amp; family modes</td>
+      <td align="left" valign="middle">Start on your own, then let the owner enable family collaboration for the same wedding.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Planning tasks</td>
+      <td align="left" valign="middle">Add, assign and complete tasks, set due dates and work through preparation stages.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Supplies</td>
+      <td align="left" valign="middle">Organize wedding items, quantities and preparation status.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Vendors</td>
+      <td align="left" valign="middle">Keep contact details, quotes, discussion notes and booking status together.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Guests</td>
+      <td align="left" valign="middle">Browse 10 guest or family records per page, jump between pages, and search or filter the list. Select across pages or all filtered results to update attendance, accommodation needs and guest groups in bulk.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Round-table seating</td>
+      <td align="left" valign="middle">Use 10 seats, 12 seats or a custom capacity. Select only unassigned guests and tables with enough room, and view their seats.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Wedding-day timeline</td>
+      <td align="left" valign="middle">Plan times, responsible people and notes for each part of the day.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Accommodation</td>
+      <td align="left" valign="middle">Select guests who need accommodation, then organize hotels, rooms and stays.</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Data export</td>
+      <td align="left" valign="middle">Export planning information as XLSX files for backups, printing and handovers.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Getting started
 
@@ -113,14 +151,40 @@ npm run build:mp-weixin
 
 Import the repository root into WeChat DevTools. The generated `project.config.json` points to `dist/build/mp-weixin/` for the mini program and `cloudfunctions/` for cloud functions.
 
-| Command | Purpose |
-| --- | --- |
-| `npm run build:mp-weixin` | Build the production mini program |
-| `npm run dev:mp-weixin` | Continuously compile the development mini program |
-| `npm run setup` | Generate local configuration and the version module |
-| `npm test` | Run automated tests |
-| `npm run type-check` | Check TypeScript types |
-| `npm run check` | Check syntax, configuration and page completeness |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">Command</th>
+      <th width="680" align="center">Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle"><code>npm run build:mp-weixin</code></td>
+      <td align="left" valign="middle">Build the production mini program</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run dev:mp-weixin</code></td>
+      <td align="left" valign="middle">Continuously compile the development mini program</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run setup</code></td>
+      <td align="left" valign="middle">Generate local configuration and the version module</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm test</code></td>
+      <td align="left" valign="middle">Run automated tests</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run type-check</code></td>
+      <td align="left" valign="middle">Check TypeScript types</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>npm run check</code></td>
+      <td align="left" valign="middle">Check syntax, configuration and page completeness</td>
+    </tr>
+  </tbody>
+</table>
 
 Edit `.vue` pages under `src/pages/` and rebuild. Watch mode switches to `dist/dev/mp-weixin/`; a production build restores the production directory. Reopen the DevTools project after switching modes. Do not edit or commit generated files in `dist/`.
 
@@ -128,11 +192,28 @@ Edit `.vue` pages under `src/pages/` and rebuild. Watch mode switches to `dist/d
 
 Set these values in `.env.local`:
 
-| Setting | What to enter |
-| --- | --- |
-| `WECHAT_APPID` | This mini program's AppID |
-| `CLOUD_ENV_ID` | The **full environment ID** from the cloud console, not its display name |
-| `CLOUD_RESOURCE_APPID` | The AppID that owns a shared environment; leave blank for this mini program's own environment |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">Setting</th>
+      <th width="680" align="center">What to enter</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle"><code>WECHAT_APPID</code></td>
+      <td align="left" valign="middle">This mini program's AppID</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>CLOUD_ENV_ID</code></td>
+      <td align="left" valign="middle">The <strong>full environment ID</strong> from the cloud console, not its display name</td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle"><code>CLOUD_RESOURCE_APPID</code></td>
+      <td align="left" valign="middle">The AppID that owns a shared environment; leave blank for this mini program's own environment</td>
+    </tr>
+  </tbody>
+</table>
 
 For an environment owned by another mini program, its owner must **authorize this mini program in the cloud console first**, then supply the resource-owner AppID. Do not swap `WECHAT_APPID` and `CLOUD_RESOURCE_APPID` or repeat the same AppID in both fields.
 
@@ -156,11 +237,28 @@ Example configuration disables cloud access. Run `npm run setup` again before co
 
 Use this mini program's own environment or a shared cloud environment. Dedicated resource names and server-side identity checks isolate wedding data.
 
-| Resource | Project name |
-| --- | --- |
-| Cloud function | `xishiTuotuoApi` |
-| Database collection | `xishi_tuotuo_groups` |
-| Cloud storage prefix | `xishi-tuotuo/` |
+<table align="center" width="100%">
+  <thead>
+    <tr>
+      <th width="320" align="center">Resource</th>
+      <th width="680" align="center">Project name</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">Cloud function</td>
+      <td align="left" valign="middle"><code>xishiTuotuoApi</code></td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Database collection</td>
+      <td align="left" valign="middle"><code>xishi_tuotuo_groups</code></td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">Cloud storage prefix</td>
+      <td align="left" valign="middle"><code>xishi-tuotuo/</code></td>
+    </tr>
+  </tbody>
+</table>
 
 1. **Prepare configuration.** Fill in `.env.local`. For an environment shared by another mini program, complete its owner's authorization and set `CLOUD_RESOURCE_APPID`, then run `npm run setup`.
 2. **Create the collection.** Create `xishi_tuotuo_groups` in the target environment and set permissions to **administrator-only read and write**. Clients access data through the cloud function, never directly.
