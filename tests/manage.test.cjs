@@ -23,12 +23,159 @@ function createPage(customMutation) {
       return { group };
     }
   };
-  const page = mountPage(path.join(__dirname, '../src/pages/manage/index.vue'), { wx: { setNavigationBarTitle() {}, showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {} } }, name => name.includes('service') ? service : catalog);
+  const page = mountPage(path.join(__dirname, '../src/pages/manage/index.vue'), { wx: { setNavigationBarTitle() {}, showToast() {}, showModal(options) { options.success({ confirm: true }); }, stopPullDownRefresh() {}, pageScrollTo() {} } }, name => name.includes('service') ? service : catalog);
   page.runtime._group = group; page.runtime._revision = group.revision;
   page.onLoad({ type: 'tasks' });
   page.renderRecords();
   return { page, group, calls };
 }
+
+function createGuestPage(count, customMutation) {
+  const result = createPage(customMutation);
+  result.group.guests = Array.from({ length: count }, (_, index) => ({
+    ...catalog.guests.defaults,
+    id: 'guest-' + (index + 1), name: 'Family ' + String(index + 1).padStart(2, '0'),
+    partySize: 2, attendance: index % 2 ? 'pending' : 'yes', needsLodging: (index + 1) % 3 === 0
+  }));
+  result.page.onLoad({ type: 'guests' });
+  result.page.state.loading = false;
+  result.page.renderRecords();
+  return result;
+}
+
+test('guest pages contain ten records while totals continue to count every family and companion', () => {
+  const { page, group } = createGuestPage(23);
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.pageCount, 3);
+  assert.equal(page.state.total, 23);
+  assert.equal(page.state.allCount, 23);
+  assert.deepEqual(page.state.rows.map(row => row.id), group.guests.slice(0, 10).map(guest => guest.id));
+  assert.deepEqual(page.state.stats.map(stat => stat.value), ['46 人', '24 人', '11 组']);
+  page.onPageChange({ currentTarget: { dataset: { page: 2 } } });
+  assert.equal(page.state.currentPage, 2);
+  assert.deepEqual(page.state.rows.map(row => row.id), group.guests.slice(10, 20).map(guest => guest.id));
+  page.onPagePick({ detail: { value: 2 } });
+  assert.equal(page.state.currentPage, 3);
+  assert.deepEqual(page.state.rows.map(row => row.id), ['guest-21', 'guest-22', 'guest-23']);
+  assert.equal(page.state.total, 23);
+  assert.deepEqual(page.state.stats.map(stat => stat.value), ['46 人', '24 人', '11 组']);
+  page.goToPage(1);
+  assert.equal(page.state.rows[0].id, 'guest-1');
+  assert.equal(group.guests.length, 23, 'Pagination never removes records from the group');
+});
+
+test('guest search and attendance filters use the full list and restart at the first result page', () => {
+  const { page } = createGuestPage(25);
+  page.goToPage(3);
+  page.onSearch({ detail: { value: 'Family 2' } });
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.pageCount, 1);
+  assert.equal(page.state.total, 6);
+  assert.deepEqual(page.state.rows.map(row => row.id), ['guest-20', 'guest-21', 'guest-22', 'guest-23', 'guest-24', 'guest-25']);
+  page.onSearch({ detail: { value: '' } });
+  page.goToPage(2);
+  page.onFilter({ currentTarget: { dataset: { value: 'pending' } } });
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.total, 12);
+  assert.equal(page.state.rows.length, 10);
+  page.goToPage(2);
+  assert.deepEqual(page.state.rows.map(row => row.id), ['guest-22', 'guest-24']);
+  page.onFilter({ currentTarget: { dataset: { value: 'lodging' } } });
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.total, 8);
+  assert.deepEqual(page.state.rows.map(row => row.id), ['guest-3', 'guest-6', 'guest-9', 'guest-12', 'guest-15', 'guest-18', 'guest-21', 'guest-24']);
+  page.onSearch({ detail: { value: 'Nobody matches' } });
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.pageCount, 1);
+  assert.equal(page.state.total, 0);
+  assert.deepEqual(page.state.rows, []);
+  assert.equal(page.state.stats[0].value, '50 人');
+});
+
+test('deleting the only guest on the last page returns to the previous valid page', async () => {
+  const { page, group, calls } = createGuestPage(21, (action, payload, current) => {
+    assert.equal(action, 'records.delete');
+    current.guests = current.guests.filter(guest => guest.id !== payload.id);
+    current.revision++;
+    return { group: current };
+  });
+  page.goToPage(3);
+  await page.remove({ currentTarget: { dataset: { id: 'guest-21' } } });
+  assert.equal(calls[0].payload.id, 'guest-21');
+  assert.equal(page.state.currentPage, 2);
+  assert.equal(page.state.pageCount, 2);
+  assert.equal(page.state.total, 20);
+  assert.deepEqual(page.state.rows.map(row => row.id), group.guests.slice(10).map(guest => guest.id));
+  group.guests = [];
+  page.renderRecords();
+  assert.equal(page.state.currentPage, 1);
+  assert.equal(page.state.pageCount, 1);
+  assert.deepEqual(page.state.rows, []);
+});
+
+test('saving a new guest clears active filters and opens the page containing the new record', async () => {
+  const { page, calls } = createGuestPage(20, (action, payload, current) => {
+    assert.equal(action, 'records.save');
+    current.guests.push({ ...payload.record, id: 'guest-new' });
+    current.revision++;
+    return { group: current };
+  });
+  page.onSearch({ detail: { value: 'Family 01' } });
+  page.onFilter({ currentTarget: { dataset: { value: 'yes' } } });
+  page.openAdd();
+  page.onInput({ currentTarget: { dataset: { key: 'name' } }, detail: { value: 'New pending family' } });
+  await page.save();
+  assert.equal(calls.length, 1);
+  assert.equal(page.state.editorOpen, false);
+  assert.equal(page.state.query, '');
+  assert.equal(page.state.filter, 'all');
+  assert.equal(page.state.currentPage, 3);
+  assert.equal(page.state.pageCount, 3);
+  assert.equal(page.state.total, 21);
+  assert.deepEqual(page.state.rows.map(row => row.id), ['guest-new']);
+});
+
+test('editing a guest keeps the current page and existing search filter', async () => {
+  const { page } = createGuestPage(23, (action, payload, current) => {
+    current.guests = current.guests.map(guest => guest.id === payload.record.id ? { ...guest, ...payload.record } : guest);
+    current.revision++;
+    return { group: current };
+  });
+  page.onSearch({ detail: { value: 'Family' } });
+  page.goToPage(2);
+  page.openEdit({ currentTarget: { dataset: { id: 'guest-12' } } });
+  page.onInput({ currentTarget: { dataset: { key: 'name' } }, detail: { value: 'Family 12 updated' } });
+  await page.save();
+  assert.equal(page.state.currentPage, 2);
+  assert.equal(page.state.query, 'Family');
+  assert.equal(page.state.rows.length, 10);
+  assert.equal(page.state.rows.find(row => row.id === 'guest-12').name, 'Family 12 updated');
+});
+
+test('page navigation is blocked while a guest operation or editor is active', () => {
+  const { page } = createGuestPage(23);
+  for (const [key, value] of [['loading', true], ['saving', true], ['pendingId', 'guest-1'], ['editorOpen', true]]) {
+    page.state[key] = value;
+    page.goToPage(2);
+    assert.equal(page.state.currentPage, 1, key + ' must prevent page navigation');
+    page.state[key] = key === 'pendingId' ? '' : false;
+  }
+  page.goToPage(2);
+  assert.equal(page.state.currentPage, 2);
+});
+
+test('guest pagination leaves other management lists and lodging choices unpaginated', () => {
+  const { page, group } = createGuestPage(33);
+  group.tasks = Array.from({ length: 13 }, (_, index) => ({ ...catalog.tasks.defaults, id: 'task-' + index, title: 'Task ' + index }));
+  page.onLoad({ type: 'tasks' });
+  page.renderRecords();
+  assert.equal(page.state.rows.length, 13);
+  assert.equal(page.state.total, 13);
+  page.onLoad({ type: 'lodgings' });
+  page.renderRecords();
+  page.openAdd();
+  assert.equal(page.state.fields.find(field => field.kind === 'guests').choices.length, 11);
+});
 
 test('deleting a group clears an open editor and private list on refresh', async () => {
   const { mountPage } = require('./vue-harness.cjs');

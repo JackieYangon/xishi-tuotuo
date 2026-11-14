@@ -1,5 +1,5 @@
 <template>
-<view class="container manage-page">
+<view :class="'container manage-page ' + (state.type === 'guests' && state.pageCount > 1 ? 'manage-page-paginated' : '')">
   <view class="page-heading">
     <view class="eyebrow">一起筹备 · 喜事妥妥</view>
     <view class="title">{{ state.config.title }}</view>
@@ -36,7 +36,7 @@
         <view v-for="(item, index) in state.config.filters" :key="item.value" :class="'filter-chip ' + (state.filter === item.value ? 'filter-active' : '')" :data-value="(item.value)" @tap="onFilter">{{ item.label }}</view>
       </view>
     </scroll-view>
-    <view class="list-caption">{{ state.query || state.filter !== 'all' ? '筛选结果' : '全部记录' }} · {{ state.total }} {{ state.type === 'guests' ? '组' : '条' }}<text v-if="state.loading"> · 更新中</text></view>
+    <view class="list-caption">{{ state.query || state.filter !== 'all' ? '筛选结果' : '全部记录' }} · {{ state.total }} {{ state.type === 'guests' ? '组' : '条' }}<text v-if="state.type === 'guests' && state.total"> · 每页 10 组</text><text v-if="state.loading"> · 更新中</text></view>
 
     <view v-if="!state.rows.length" class="card empty">
       <view class="empty-mark">{{ state.allCount ? '⌕' : '＋' }}</view>
@@ -75,6 +75,13 @@
     </view>
 
     <view class="bottom-action">
+      <view v-if="state.type === 'guests' && state.pageCount > 1" class="guest-pagination">
+        <button class="page-button previous-page" :data-page="state.currentPage - 1" @tap="onPageChange" :disabled="state.currentPage <= 1 || state.loading || !!state.pendingId">上一页</button>
+        <picker class="page-picker" :range="state.pageOptions" :value="state.currentPage - 1" @change="onPagePick" :disabled="state.loading || !!state.pendingId">
+          <view class="page-position">第 {{ state.currentPage }} / {{ state.pageCount }} 页 <text class="picker-arrow">⌄</text></view>
+        </picker>
+        <button class="page-button next-page" :data-page="state.currentPage + 1" @tap="onPageChange" :disabled="state.currentPage >= state.pageCount || state.loading || !!state.pendingId">下一页</button>
+      </view>
       <button class="button-primary add-button" @tap="openAdd" :disabled="(state.loading || !!state.pendingId)">＋ 添加{{ state.config.singular }}</button>
     </view>
   </template>
@@ -134,10 +141,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, nextTick } from 'vue';
 import { updateState } from '../../utils/state';
 import service from '../../utils/service';
 import catalog from '../../utils/catalog';
+
+const GUEST_PAGE_SIZE = 10;
 
 function localDate() {
   const d = new Date();
@@ -156,6 +165,7 @@ export default defineComponent({
   data() { return { state: {
     type: 'tasks', config: catalog.tasks, loading: true, error: '', noGroup: false,
     query: '', filter: 'all', rows: [], stats: [], total: 0, allCount: 0,
+    currentPage: 1, pageCount: 1, pageOptions: [],
     editorOpen: false, editingId: '', form: {}, fields: [], saving: false,
     pendingId: '', draftError: '', editorConflict: false, lodgingUnassigned: 0
   } as Record<string, any>, runtime: {} as Record<string, any> }; },
@@ -173,7 +183,10 @@ async load() {
     this.runtime._loading = true;
     updateState(this.state, { loading: true, error: '', noGroup: false });
     try {
-        this.runtime._group = await service.getGroup();
+        const group = await service.getGroup();
+        if (this.runtime._group && this.runtime._group.id !== group.id)
+            updateState(this.state, { currentPage: 1 });
+        this.runtime._group = group;
         this.runtime._revision = this.runtime._group.revision;
         this.renderRecords();
         if (this.state.editorOpen)
@@ -182,7 +195,7 @@ async load() {
     catch (error) {
         if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
             this.runtime._group = null;
-            updateState(this.state, { rows: [], stats: [], form: {}, fields: [], editorOpen: false, noGroup: true });
+            updateState(this.state, { rows: [], stats: [], form: {}, fields: [], editorOpen: false, noGroup: true, currentPage: 1, pageCount: 1, pageOptions: [], total: 0, allCount: 0 });
         }
         updateState(this.state, { error: error.message || '暂时无法读取，请稍后重试', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) });
     }
@@ -304,10 +317,35 @@ renderRecords() {
         stats = [{ label: '住宿安排', value: source.length }, { label: '已安排亲友', value: countPeople(guests.filter(guest => assignedIds.includes(guest.id))) + ' 人' }, { label: '待安排', value: countPeople(unassigned) + ' 人' }];
         updateState(this.state, { lodgingUnassigned: countPeople(unassigned) });
     }
-    updateState(this.state, { rows, stats, total: rows.length, allCount: source.length });
+    const total = rows.length;
+    const pageCount = type === 'guests' ? Math.max(1, Math.ceil(total / GUEST_PAGE_SIZE)) : 1;
+    const currentPage = Math.min(Math.max(1, this.state.currentPage), pageCount);
+    const visibleRows = type === 'guests' ? rows.slice((currentPage - 1) * GUEST_PAGE_SIZE, currentPage * GUEST_PAGE_SIZE) : rows;
+    updateState(this.state, {
+        rows: visibleRows, stats, total, allCount: source.length, currentPage, pageCount,
+        pageOptions: type === 'guests' ? Array.from({ length: pageCount }, (_, index) => '第 ' + (index + 1) + ' 页') : []
+    });
 },
-onSearch(event) { updateState(this.state, { query: event.detail.value }); this.renderRecords(); },
-onFilter(event) { updateState(this.state, { filter: event.currentTarget.dataset.value }); this.renderRecords(); },
+onSearch(event) { updateState(this.state, { query: event.detail.value, currentPage: 1 }); this.renderRecords(); },
+onFilter(event) { updateState(this.state, { filter: event.currentTarget.dataset.value, currentPage: 1 }); this.renderRecords(); },
+scrollToGuestList() {
+    nextTick(() => wx.pageScrollTo({ scrollTop: 0, duration: 200 }));
+},
+goToPage(value) {
+    if (this.state.type !== 'guests' || this.state.loading || this.state.saving || this.state.pendingId || this.state.editorOpen)
+        return;
+    const requested = Number(value);
+    if (!Number.isInteger(requested))
+        return;
+    const currentPage = Math.min(Math.max(1, requested), this.state.pageCount);
+    if (currentPage === this.state.currentPage)
+        return;
+    updateState(this.state, { currentPage });
+    this.renderRecords();
+    this.scrollToGuestList();
+},
+onPageChange(event) { this.goToPage(event.currentTarget.dataset.page); },
+onPagePick(event) { this.goToPage(Number(event.detail.value) + 1); },
 openAdd() {
     if (!this.runtime._group || this.state.saving || this.state.pendingId)
         return;
@@ -433,6 +471,14 @@ async save() {
     try {
         const result = await service.mutate('records.save', { type: this.state.type, record }, this.runtime._editorRevision);
         await this.refreshAfterMutation(result);
+        if (this.state.type === 'guests' && !this.state.editingId) {
+            updateState(this.state, {
+                query: '', filter: 'all',
+                currentPage: Math.max(1, Math.ceil((this.runtime._group.guests || []).length / GUEST_PAGE_SIZE))
+            });
+            this.renderRecords();
+            this.scrollToGuestList();
+        }
         updateState(this.state, { editorOpen: false });
         wx.showToast({ title: '已保存', icon: 'success' });
     }
@@ -566,6 +612,7 @@ goSeats() { wx.navigateTo({ url: '/pages/seating/index' }); }
 
 <style>
 .manage-page { padding-bottom: 190rpx; }
+.manage-page-paginated { padding-bottom: 290rpx; }
 .page-heading { padding: 12rpx 0 30rpx; }
 .eyebrow { color: #a26570; font-size: 22rpx; letter-spacing: 3rpx; margin-bottom: 12rpx; }
 .stats-bar { display: flex; padding: 28rpx 8rpx; background: #f2e8e4; border-radius: 24rpx; margin-bottom: 24rpx; }
@@ -611,6 +658,12 @@ goSeats() { wx.navigateTo({ url: '/pages/seating/index' }); }
 .error-title { font-size: 32rpx; color: #735149; margin-bottom: 18rpx; }
 .error-description { margin-bottom: 30rpx; line-height: 1.8; }
 .bottom-action { position: fixed; left: 0; right: 0; bottom: 0; padding: 22rpx 32rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); background: rgba(252, 248, 243, .96); border-top: 1rpx solid #ece1db; z-index: 10; }
+.guest-pagination { display: flex; align-items: center; gap: 16rpx; margin-bottom: 18rpx; }
+.page-button { margin: 0; padding: 0 24rpx; line-height: 68rpx; border-radius: 14rpx; font-size: 25rpx; color: #984354; background: #f2e8e4; flex-shrink: 0; }
+.page-button::after { border: none; }
+.page-button[disabled] { color: #b5a59b; background: #f3eee8; }
+.page-picker { flex: 1; min-width: 0; }
+.page-position { display: flex; align-items: center; justify-content: center; gap: 10rpx; color: #896d62; font-size: 24rpx; line-height: 68rpx; white-space: nowrap; }
 .add-button { width: 100%; }
 .editor-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(50, 32, 30, .45); z-index: 100; display: flex; align-items: flex-end; }
 .editor-sheet { width: 100%; max-height: 92vh; border-radius: 34rpx 34rpx 0 0; background: #fffcf8; overflow: hidden; display: flex; flex-direction: column; }
