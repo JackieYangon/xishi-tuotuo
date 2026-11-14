@@ -6,7 +6,7 @@
 
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.3.3" src="https://img.shields.io/badge/version-2.3.3-00866a?style=flat-square" />
+  <img alt="version 2.4.0" src="https://img.shields.io/badge/version-2.4.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -36,8 +36,8 @@
     </td>
     <td width="500" align="center" valign="top">
       <b>Round-table seating</b><br />
-      <sub>Seat unassigned guests and see available table capacity</sub><br /><br />
-      <a href="docs/assets/seating-demo.gif" title="View the full-size animation"><img src="docs/assets/seating-demo.gif" width="100%" alt="Unassigned guest selection and round-table seating demonstration" /></a>
+      <sub>Browse all tables, then open one to arrange seats</sub><br /><br />
+      <a href="docs/assets/seating-demo.gif" title="View the full-size animation"><img src="docs/assets/seating-demo.gif" width="100%" alt="Table thumbnail overview, table details and seating demonstration" /></a>
     </td>
   </tr>
 </table>
@@ -78,7 +78,7 @@
     </tr>
     <tr>
       <td align="center" valign="middle">Round-table seating</td>
-      <td align="left" valign="middle">Use 10 seats, 12 seats or a custom capacity. Select only unassigned guests and tables with enough room, and view their seats.</td>
+      <td align="left" valign="middle">Browse all tables in a compact thumbnail overview, then open one to view seats, assign guests, move families or remove them from the table. Use 10 seats, 12 seats or a custom capacity; new assignments offer only unseated guests and tables with enough room.</td>
     </tr>
     <tr>
       <td align="center" valign="middle">Wedding-day timeline</td>

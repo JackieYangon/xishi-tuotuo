@@ -6,7 +6,7 @@
 
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.3.3" src="https://img.shields.io/badge/version-2.3.3-00866a?style=flat-square" />
+  <img alt="version 2.4.0" src="https://img.shields.io/badge/version-2.4.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -36,8 +36,8 @@
     </td>
     <td width="500" align="center" valign="top">
       <b>圆桌排座</b><br />
-      <sub>安排待入座亲友，清楚查看桌位余量</sub><br /><br />
-      <a href="docs/assets/seating-demo.gif" title="点击查看完整动图"><img src="docs/assets/seating-demo.gif" width="100%" alt="未排座宾客选择及圆桌安排演示" /></a>
+      <sub>多桌缩略总览，点开单桌安排座位</sub><br /><br />
+      <a href="docs/assets/seating-demo.gif" title="点击查看完整动图"><img src="docs/assets/seating-demo.gif" width="100%" alt="圆桌缩略总览、单桌详情及入座安排演示" /></a>
     </td>
   </tr>
 </table>
@@ -78,7 +78,7 @@
     </tr>
     <tr>
       <td align="center" valign="middle">圆桌排座</td>
-      <td align="left" valign="middle">支持 10 人桌、12 人桌及自定义容量；只选择未排座亲友和余位足够的桌子，直观查看座位。</td>
+      <td align="left" valign="middle">用缩略总览查看所有圆桌，点击单桌展开座位并安排、换桌或移出亲友。支持 10 人桌、12 人桌及自定义容量；入座时只选择未排座亲友和余位足够的桌子。</td>
     </tr>
     <tr>
       <td align="center" valign="middle">当天流程</td>

@@ -20,56 +20,91 @@
     </view>
     <view class="capacity-caption">共 {{ state.totalCapacity }} 个座位 · 待回复亲友可先预留座位</view>
 
-    <view class="card waiting-card">
-      <view class="waiting-header"><view class="section-title">待安排亲友</view><button class="text-action" @tap="goGuests">管理名单 →</button></view>
-      <view v-if="state.waitingCount" class="waiting-search"><input placeholder="搜索待排桌的亲友" :value="(state.query)" @input="onSearch" maxlength="60" /></view>
-      <view v-for="(item, index) in state.waiting" :key="item.id" class="waiting-guest">
-        <view class="waiting-person"><view class="guest-name">{{ item.name }}</view><view class="guest-detail">{{ item.partySize }} 人 · {{ item.attendance === 'yes' ? '确认出席' : '待回复' }}</view></view>
-        <button class="small-button" :data-guest="(item.id)" @tap="openAssignment" :disabled="(state.saving || !state.tables.length)">安排入座</button>
-      </view>
-      <view v-if="!state.waiting.length" class="waiting-empty">{{ state.waitingCount ? '没有匹配的亲友，换个名字试试' : state.assignedCount ? '所有受邀亲友都已安排好座位' : '先添加宾客，再为亲友安排圆桌' }}</view>
-      <view v-if="state.waitingCount && !state.tables.length" class="muted create-tip">先在下方添加一张圆桌，就能开始排座。</view>
-    </view>
+    <button class="waiting-entry" @tap="openWaiting" :disabled="state.saving" :aria-label="'查看待安排亲友，' + state.waitingCount + ' 人，共 ' + state.waitingGroupsCount + ' 组'">
+      <view class="waiting-entry-copy"><text class="waiting-entry-title">待安排亲友</text><text class="waiting-entry-count">{{ state.waitingCount }} 人 · {{ state.waitingGroupsCount }} 组</text></view>
+      <text class="waiting-entry-action">查看名单 →</text>
+    </button>
 
-    <view class="tables-section-label">圆桌示意<text>点击座位可查看或调整安排</text></view>
+    <view class="tables-section-label">圆桌总览<text>点击圆桌，放大查看与安排座位</text></view>
     <view v-if="!state.tables.length" class="card empty table-empty">
       <view class="empty-table-art"><view></view><view></view><view></view><view></view></view>
       <view>第一桌，从这里开始</view>
       <view class="muted">10 人桌、12 人桌，或按宴会厅自定义人数</view>
     </view>
 
-    <view v-for="(table, index) in state.tables" :key="table.id" class="card table-card">
-      <view class="table-card-header">
-        <view><view class="table-name">{{ table.name }}</view><view class="table-capacity">{{ table.capacity }} 人圆桌</view></view>
-        <view :class="'occupancy-badge ' + (table.full ? 'is-full' : '')">{{ table.full ? '已满员' : '还可坐 ' + table.available + ' 人' }}</view>
-      </view>
-      <view class="round-table-canvas">
-        <view class="table-outline"></view>
-        <view class="table-surface">
-          <view class="table-decoration">喜</view>
-          <view class="table-center-name">{{ table.name }}</view>
-          <view class="table-center-count">{{ table.count }}<text> / {{ table.capacity }} 人</text></view>
-          <view class="table-center-flower">· ❀ ·</view>
+    <view v-if="state.tables.length" class="table-overview-grid">
+      <button v-for="table in state.tables" :key="table.id" :class="'table-thumbnail ' + (table.full ? 'thumbnail-full' : table.count ? 'thumbnail-occupied' : 'thumbnail-empty')" :data-id="table.id" @tap="openTableDetail" :disabled="state.saving" :aria-label="table.name + '，已安排 ' + table.count + ' 人，共 ' + table.capacity + ' 位，' + (table.full ? '已满员' : '还可坐 ' + table.available + ' 人') + '，点击查看详情'">
+        <view class="thumbnail-drawing" aria-hidden="true">
+          <view class="thumbnail-canvas">
+            <view class="table-outline"></view><view class="table-surface"></view>
+            <view v-for="seat in table.seats" :key="seat.index" :class="'chair ' + (seat.filled ? 'chair-filled' : 'chair-empty') + ' color-' + seat.color" :style="seat.style"></view>
+          </view>
+          <view class="thumbnail-count">{{ table.count }}<text>/{{ table.capacity }}</text></view>
         </view>
-        <view v-for="(seat, index) in table.seats" :key="seat.index" :class="'chair ' + (seat.filled ? 'chair-filled' : 'chair-empty') + ' color-' + (seat.color)" :style="(seat.style)" :data-guest="(seat.guestId)" :data-table="(table.id)" @tap="openAssignment" :aria-label="(seat.fullLabel)">{{ seat.label }}</view>
-      </view>
-      <view class="table-legend"><view class="legend-dot legend-filled"></view><text>已安排</text><view class="legend-dot legend-empty"></view><text>空位</text><text class="legend-family">同色代表同组亲友</text></view>
-      <view v-for="(guest, index) in table.guests" :key="guest.id" class="seated-guest">
-        <view :class="'family-dot color-' + (guest.color)"></view>
-        <view class="seated-guest-info"><view class="guest-name">{{ guest.name }}<text class="party-number">{{ guest.partySize }} 人</text></view><view v-if="guest.attendance === 'pending'" class="guest-detail">待回复 · 已预留座位</view></view>
-        <button class="mini-action" :data-guest="(guest.id)" @tap="openAssignment" :disabled="(state.saving)">换桌</button>
-        <button class="mini-action muted-action" :data-id="(guest.id)" @tap="unseat" :disabled="(state.saving)">移出</button>
-      </view>
-      <view v-if="!table.guests.length" class="table-no-guests">座位都准备好了，安排亲友入座吧。</view>
-      <view class="table-actions">
-        <button class="small-button assign-button" :data-table="(table.id)" @tap="openAssignment" :disabled="(state.saving || table.full)">＋ 安排亲友</button>
-        <view class="action-spacer"></view>
-        <button class="mini-action" :data-id="(table.id)" @tap="openTable" :disabled="(state.saving)">编辑</button>
-        <button class="mini-action muted-action" :data-id="(table.id)" @tap="deleteTable" :disabled="(state.saving)">删除</button>
-      </view>
+        <view class="thumbnail-name">{{ table.name }}</view>
+        <view class="thumbnail-availability">{{ table.full ? '已满员' : table.count ? '余 ' + table.available + ' 位' : '空桌 · ' + table.capacity + ' 座' }}</view>
+      </button>
     </view>
     <view class="bottom-action"><button class="button-primary" @tap="openTable" :disabled="(state.saving || state.loading)">＋ 添加圆桌</button></view>
   </template>
+</view>
+
+<view v-if="state.detailTable && !state.tableEditor && !state.assignmentOpen && !state.error" class="modal-mask detail-mask" @tap.stop="closeTableDetail" @touchmove.stop="stopTap">
+  <view class="modal-sheet table-detail-sheet" @tap.stop="stopTap">
+    <view class="modal-heading detail-heading">
+      <view class="detail-heading-copy">
+        <view class="modal-title detail-title">{{ state.detailTable.name }}</view>
+        <view class="detail-summary"><text>{{ state.detailTable.capacity }} 人圆桌</text><view :class="'occupancy-badge ' + (state.detailTable.full ? 'is-full' : '')">{{ state.detailTable.full ? '已满员' : '还可坐 ' + state.detailTable.available + ' 人' }}</view></view>
+      </view>
+      <button class="close-modal table-detail-close" @tap="closeTableDetail" :disabled="state.saving" aria-label="关闭圆桌详情">×</button>
+    </view>
+    <scroll-view class="table-detail-scroll" scroll-y enhanced :show-scrollbar="false">
+      <view class="table-detail-body">
+        <view class="round-table-canvas">
+          <view class="table-outline"></view>
+          <view class="table-surface">
+            <view class="table-decoration">喜</view>
+            <view class="table-center-name">{{ state.detailTable.name }}</view>
+            <view class="table-center-count">{{ state.detailTable.count }}<text> / {{ state.detailTable.capacity }} 人</text></view>
+            <view class="table-center-flower">· ❀ ·</view>
+          </view>
+          <view v-for="seat in state.detailTable.seats" :key="seat.index" :class="'chair ' + (seat.filled ? 'chair-filled' : 'chair-empty') + ' color-' + seat.color" :style="seat.style" :data-guest="seat.guestId" :data-table="state.detailTable.id" @tap="openAssignment" :aria-label="seat.fullLabel">{{ seat.label }}</view>
+        </view>
+        <view class="table-legend"><view class="legend-dot legend-filled"></view><text>已安排</text><view class="legend-dot legend-empty"></view><text>空位</text><text class="legend-family">同色代表同组亲友</text></view>
+        <view v-for="guest in state.detailTable.guests" :key="guest.id" class="seated-guest">
+          <view :class="'family-dot color-' + guest.color"></view>
+          <view class="seated-guest-info"><view class="guest-name">{{ guest.name }}<text class="party-number">{{ guest.partySize }} 人</text></view><view v-if="guest.attendance === 'pending'" class="guest-detail">待回复 · 已预留座位</view></view>
+          <button class="mini-action" :data-guest="guest.id" @tap="openAssignment" :disabled="state.saving">换桌</button>
+          <button class="mini-action muted-action" :data-id="guest.id" @tap="unseat" :disabled="state.saving">移出</button>
+        </view>
+        <view v-if="!state.detailTable.guests.length" class="table-no-guests">座位都准备好了，安排亲友入座吧。</view>
+      </view>
+    </scroll-view>
+    <view class="table-actions detail-actions">
+      <button class="small-button assign-button" :data-table="state.detailTable.id" @tap="openAssignment" :disabled="state.saving || state.detailTable.full">＋ 安排亲友</button>
+      <view class="action-spacer"></view>
+      <button class="mini-action" :data-id="state.detailTable.id" @tap="openTable" :disabled="state.saving">编辑</button>
+      <button class="mini-action muted-action" :data-id="state.detailTable.id" @tap="deleteTable" :disabled="state.saving">删除</button>
+    </view>
+  </view>
+</view>
+
+<view v-if="state.waitingOpen && !state.tableEditor && !state.assignmentOpen && !state.error" class="modal-mask waiting-mask" @tap.stop="closeWaiting" @touchmove.stop="stopTap">
+  <view class="modal-sheet waiting-sheet" @tap.stop="stopTap">
+    <view class="modal-heading waiting-heading"><view><view class="modal-title">待安排亲友</view><view class="guest-detail">{{ state.waitingCount }} 人 · {{ state.waitingGroupsCount }} 组</view></view><button class="close-modal waiting-close" @tap="closeWaiting" :disabled="state.saving" aria-label="关闭待安排名单">×</button></view>
+    <view class="waiting-tools"><view v-if="state.waitingCount" class="waiting-search"><input placeholder="搜索待排桌的亲友" :value="state.query" @input="onSearch" maxlength="60" /></view><button class="text-action" @tap="goGuests">管理名单 →</button></view>
+    <scroll-view class="waiting-scroll" scroll-y enhanced :show-scrollbar="false">
+      <view class="waiting-list">
+        <view v-for="item in state.waiting" :key="item.id" class="waiting-guest">
+          <view class="waiting-person"><view class="guest-name">{{ item.name }}</view><view class="guest-detail">{{ item.partySize }} 人 · {{ item.attendance === 'yes' ? '确认出席' : '待回复' }}</view></view>
+          <button class="small-button" :data-guest="item.id" @tap="openAssignment" :disabled="state.saving || !state.tables.length">安排入座</button>
+        </view>
+        <view v-if="!state.waiting.length" class="waiting-empty">{{ state.waitingCount ? '没有匹配的亲友，换个名字试试' : state.assignedCount ? '所有受邀亲友都已安排好座位' : '先添加宾客，再为亲友安排圆桌' }}</view>
+        <view v-if="state.waitingCount && !state.tables.length" class="muted create-tip">先添加一张圆桌，就能开始排座。</view>
+      </view>
+    </scroll-view>
+    <view class="waiting-footer"><button v-if="!state.tables.length" class="button-primary" @tap="openTable" :disabled="state.saving">＋ 添加圆桌</button><button v-else class="button-secondary" @tap="closeWaiting" :disabled="state.saving">返回圆桌总览</button></view>
+  </view>
 </view>
 
 <view v-if="state.tableEditor" class="modal-mask" @tap.stop="closeTable" @touchmove.stop="stopTap">
@@ -162,8 +197,9 @@ function seatLayout(capacity, guests) {
 
 export default defineComponent({
   data() { return { state: {
-    loading: true, error: '', noGroup: false, tables: [], waiting: [], waitingCount: 0,
+    loading: true, error: '', noGroup: false, tables: [], waiting: [], waitingCount: 0, waitingGroupsCount: 0,
     seatsCount: 0, assignedCount: 0, totalCapacity: 0, query: '', saving: false,
+    detailTableId: '', detailTable: null, waitingOpen: false,
     tableEditor: false, tableId: '', tableName: '', capacityMode: '10', customCapacity: '', tableError: '', tableConflict: false,
     assignmentOpen: false, assignmentMode: 'new', assignGuestId: '', assignTableId: '', guestOptions: [], tableOptions: [], availableTables: [],
     assignmentGuestName: '', assignmentGuestDetail: '', tableEmptyHint: '',
@@ -187,7 +223,8 @@ async load() {
     catch (error) {
         if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
             this.runtime._group = null;
-            updateState(this.state, { tables: [], waiting: [], tableEditor: false, assignmentOpen: false, tableName: '', guestOptions: [], tableOptions: [], availableTables: [], assignGuestId: '', assignTableId: '', assignmentGuestName: '', assignmentGuestDetail: '', canAssign: false });
+            this.runtime._overviewGroupId = '';
+            updateState(this.state, { tables: [], waiting: [], waitingCount: 0, waitingGroupsCount: 0, seatsCount: 0, assignedCount: 0, totalCapacity: 0, query: '', detailTableId: '', detailTable: null, waitingOpen: false, tableEditor: false, assignmentOpen: false, tableName: '', guestOptions: [], tableOptions: [], availableTables: [], assignGuestId: '', assignTableId: '', assignmentGuestName: '', assignmentGuestDetail: '', canAssign: false });
         }
         updateState(this.state, { error: error.message || '暂时无法读取排桌信息', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) });
     }
@@ -212,10 +249,15 @@ render() {
     });
     const tableIds = tables.map(table => table.id);
     const waiting = (group.guests || []).filter(guest => guest.attendance !== 'no' && (!guest.tableId || !tableIds.includes(guest.tableId)));
+    const changedGroup = this.runtime._overviewGroupId && this.runtime._overviewGroupId !== group.id;
+    const detailTable = changedGroup ? null : tables.find(table => table.id === this.state.detailTableId) || null;
+    const detailRemoved = this.state.detailTableId && !detailTable;
+    this.runtime._overviewGroupId = group.id;
     updateState(this.state, {
         tables, waiting: waiting.filter(guest => !this.state.query || guest.name.toLowerCase().includes(this.state.query.trim().toLowerCase())),
-        waitingCount: people(waiting), assignedCount: tables.reduce((sum, table) => sum + table.count, 0),
-        totalCapacity: tables.reduce((sum, table) => sum + table.capacity, 0), seatsCount: tables.length
+        waitingCount: people(waiting), waitingGroupsCount: waiting.length, assignedCount: tables.reduce((sum, table) => sum + table.count, 0),
+        totalCapacity: tables.reduce((sum, table) => sum + table.capacity, 0), seatsCount: tables.length,
+        detailTable, detailTableId: detailTable ? detailTable.id : '', waitingOpen: changedGroup || detailRemoved ? false : this.state.waitingOpen
     });
 },
 async apply(result) {
@@ -226,6 +268,28 @@ async apply(result) {
     this.render();
 },
 onSearch(event) { updateState(this.state, { query: event.detail.value }); this.render(); },
+openTableDetail(event) {
+    if (this.state.saving || this.state.tableEditor || this.state.assignmentOpen || !this.runtime._group)
+        return;
+    const table = this.state.tables.find(item => item.id === event.currentTarget.dataset.id);
+    if (!table)
+        return;
+    updateState(this.state, { detailTableId: table.id, detailTable: table, waitingOpen: false });
+},
+closeTableDetail() {
+    if (!this.state.saving)
+        updateState(this.state, { detailTableId: '', detailTable: null });
+},
+openWaiting() {
+    if (this.state.saving || this.state.tableEditor || this.state.assignmentOpen || !this.runtime._group)
+        return;
+    updateState(this.state, { waitingOpen: true, detailTableId: '', detailTable: null, query: '' });
+    this.render();
+},
+closeWaiting() {
+    if (!this.state.saving)
+        updateState(this.state, { waitingOpen: false });
+},
 openTable(event) {
     if (this.state.saving || !this.runtime._group)
         return;
@@ -486,19 +550,22 @@ goGroup() { wx.navigateTo({ url: '/pages/group/index' }); }
 
 <style>
 .seating-page { padding-bottom: 190rpx; }
-.seating-heading { padding: 12rpx 0 28rpx; }
-.eyebrow { color: #a26570; font-size: 22rpx; letter-spacing: 3rpx; margin-bottom: 12rpx; }
-.seating-stats { display: flex; padding: 30rpx 8rpx; background: #f2e8e4; border-radius: 24rpx; }
+.seating-heading { padding: 4rpx 0 18rpx; }
+.eyebrow { color: #a26570; font-size: 20rpx; letter-spacing: 3rpx; margin-bottom: 8rpx; }
+.seating-stats { display: flex; padding: 20rpx 8rpx; background: #f2e8e4; border-radius: 24rpx; }
 .seating-stat { flex: 1; text-align: center; border-right: 1rpx solid #e3d3cd; }
 .seating-stat:last-child { border: none; }
-.stat-number { font-size: 38rpx; font-weight: 600; color: #843c4b; }
+.stat-number { font-size: 34rpx; font-weight: 600; color: #843c4b; }
 .stat-number text { font-size: 22rpx; font-weight: 400; }
-.stat-label { color: #937970; font-size: 22rpx; margin-top: 8rpx; }
-.capacity-caption { color: #a0887b; font-size: 22rpx; text-align: center; margin: 18rpx 0 30rpx; }
-.waiting-card { padding: 28rpx; }
-.waiting-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12rpx; }
+.stat-label { color: #937970; font-size: 20rpx; margin-top: 4rpx; }
+.capacity-caption { color: #a0887b; font-size: 20rpx; text-align: center; margin: 12rpx 0 18rpx; }
+.waiting-entry { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0; padding: 18rpx 20rpx; background: #fff; border: 1rpx solid #ecdfd6; border-radius: 18rpx; line-height: 1.6; text-align: left; }
+.waiting-entry-copy { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4rpx 16rpx; }
+.waiting-entry-title { color: #65473f; font-size: 25rpx; font-weight: 600; }
+.waiting-entry-count { color: #a48273; font-size: 22rpx; }
+.waiting-entry-action { color: #984354; font-size: 22rpx; margin-left: 12rpx; flex-shrink: 0; }
 .text-action { background: transparent; color: #984354; font-size: 24rpx; padding: 0; margin: 0; line-height: 1.6; }
-.text-action::after, .small-button::after, .mini-action::after, .close-modal::after, .capacity-option::after { border: none; }
+.text-action::after, .small-button::after, .mini-action::after, .close-modal::after, .capacity-option::after, .waiting-entry::after, .table-thumbnail::after { border: none; }
 .waiting-search { background: #f7f2ec; padding: 18rpx 22rpx; border-radius: 12rpx; margin: 18rpx 0 12rpx; }
 .waiting-search input { font-size: 25rpx; }
 .waiting-guest { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding: 20rpx 0; border-bottom: 1rpx solid #f1e8df; }
@@ -509,12 +576,20 @@ goGroup() { wx.navigateTo({ url: '/pages/group/index' }); }
 .small-button { margin: 0; padding: 12rpx 20rpx; border-radius: 12rpx; background: #f4e6e6; color: #984354; font-size: 24rpx; line-height: 1.5; flex-shrink: 0; }
 .waiting-empty { color: #a48b7d; font-size: 25rpx; text-align: center; padding: 28rpx 0 14rpx; line-height: 1.8; }
 .create-tip { font-size: 23rpx; line-height: 1.7; margin-top: 16rpx; }
-.tables-section-label { color: #6f4e44; font-size: 30rpx; font-weight: 600; margin: 36rpx 4rpx 20rpx; }
-.tables-section-label text { display: block; color: #a3897b; font-size: 22rpx; font-weight: 400; margin-top: 10rpx; }
-.table-card { padding: 28rpx; margin-bottom: 26rpx; overflow: hidden; }
-.table-card-header { display: flex; align-items: center; justify-content: space-between; }
-.table-name { color: #5b3938; font-size: 32rpx; font-weight: 600; max-width: 380rpx; word-break: break-word; }
-.table-capacity { color: #a28778; font-size: 22rpx; margin-top: 7rpx; }
+.tables-section-label { color: #6f4e44; font-size: 28rpx; font-weight: 600; margin: 22rpx 4rpx 14rpx; }
+.tables-section-label text { display: block; color: #a3897b; font-size: 20rpx; font-weight: 400; margin-top: 6rpx; }
+.table-overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; }
+.table-thumbnail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2rpx; width: 100%; min-width: 0; height: 198rpx; margin: 0; padding: 8rpx; box-sizing: border-box; border: 2rpx solid #eadbd1; border-radius: 18rpx; background: #fffdf9; line-height: 1.2; }
+.thumbnail-occupied { border-color: #ddc2bd; background: #fffaf7; }
+.thumbnail-full { border-color: #d8c3b8; background: #f6ede7; }
+.thumbnail-drawing { position: relative; width: 100rpx; height: 100rpx; flex-shrink: 0; }
+.thumbnail-canvas { width: 560rpx; height: 560rpx; transform: scale(.178571); transform-origin: top left; position: absolute; top: 0; left: 0; }
+.thumbnail-count { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; color: #8d504d; font-size: 26rpx; font-weight: 600; line-height: 1; }
+.thumbnail-count text { font-size: 17rpx; font-weight: 400; margin-left: 2rpx; color: #a38474; }
+.thumbnail-name { width: 100%; height: 48rpx; color: #65433d; font-size: 22rpx; font-weight: 600; line-height: 24rpx; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; }
+.thumbnail-availability { color: #758a63; font-size: 20rpx; line-height: 24rpx; white-space: nowrap; }
+.thumbnail-full .thumbnail-availability { color: #a16c62; }
+.thumbnail-empty .thumbnail-availability { color: #a28c7b; }
 .occupancy-badge { color: #78916c; background: #edf2e8; padding: 10rpx 16rpx; border-radius: 40rpx; font-size: 22rpx; flex-shrink: 0; }
 .is-full { color: #a16c62; background: #f5e8e2; }
 .round-table-canvas { width: 560rpx; height: 560rpx; position: relative; margin: 20rpx auto 4rpx; }
@@ -561,7 +636,22 @@ goGroup() { wx.navigateTo({ url: '/pages/group/index' }); }
 .modal-sheet { width: 100%; border-radius: 32rpx 32rpx 0 0; box-sizing: border-box; background: #fffcf8; padding: 30rpx 36rpx; padding-bottom: calc(30rpx + env(safe-area-inset-bottom)); }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32rpx; }
 .modal-title { font-size: 34rpx; color: #5c3e39; font-weight: 600; }
-.close-modal { width: 60rpx; height: 60rpx; border-radius: 50%; font-size: 42rpx; padding: 0; line-height: 55rpx; margin: 0; color: #a68778; background: #f4ece4; }
+.close-modal { width: 60rpx; height: 60rpx; border-radius: 50%; font-size: 42rpx; padding: 0; line-height: 55rpx; margin: 0; color: #a68778; background: #f4ece4; flex-shrink: 0; }
+.table-detail-sheet, .waiting-sheet { max-height: 92vh; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.detail-heading, .waiting-heading { flex-shrink: 0; margin: 0; padding: 28rpx 32rpx 22rpx; border-bottom: 1rpx solid #eee1d5; gap: 20rpx; align-items: flex-start; }
+.detail-heading-copy { flex: 1; min-width: 0; }
+.detail-title { line-height: 1.5; white-space: normal; word-break: break-all; }
+.detail-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 12rpx; margin-top: 10rpx; color: #a28778; font-size: 23rpx; }
+.detail-summary .occupancy-badge { padding: 6rpx 14rpx; }
+.table-detail-scroll { height: 60vh; min-height: 0; }
+.table-detail-body { padding: 0 28rpx 28rpx; }
+.detail-actions { flex-shrink: 0; margin: 0; padding: 22rpx 32rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); }
+.waiting-tools { display: flex; align-items: center; gap: 18rpx; padding: 20rpx 32rpx 14rpx; }
+.waiting-tools .waiting-search { flex: 1; min-width: 0; margin: 0; }
+.waiting-tools .text-action { flex-shrink: 0; margin-left: auto; }
+.waiting-scroll { height: 50vh; min-height: 0; }
+.waiting-list { padding: 0 32rpx 24rpx; }
+.waiting-footer { flex-shrink: 0; border-top: 1rpx solid #eee1d5; padding: 22rpx 32rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); }
 .modal-sheet .field { margin-bottom: 28rpx; }
 .modal-sheet .input { font-size: 28rpx; box-sizing: border-box; min-height: 88rpx; background: #f7f1eb; }
 .capacity-options { display: flex; gap: 16rpx; }
