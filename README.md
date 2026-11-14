@@ -32,12 +32,12 @@
     <td width="500" align="center" valign="top">
       <b>宾客与批量修改</b><br />
       <sub>每页 10 组，集中更新出席与住宿状态</sub><br /><br />
-      <a href="docs/assets/guests-demo.gif" title="点击查看完整动图"><img src="docs/assets/guests-demo.gif" width="300" alt="宾客列表翻页及批量修改状态演示" /></a>
+      <a href="docs/assets/guests-demo.gif" title="点击查看完整动图"><img src="docs/assets/guests-demo.gif" width="100%" alt="宾客列表翻页及批量修改状态演示" /></a>
     </td>
     <td width="500" align="center" valign="top">
       <b>圆桌排座</b><br />
       <sub>安排待入座亲友，清楚查看桌位余量</sub><br /><br />
-      <a href="docs/assets/seating-demo.gif" title="点击查看完整动图"><img src="docs/assets/seating-demo.gif" width="300" alt="未排座宾客选择及圆桌安排演示" /></a>
+      <a href="docs/assets/seating-demo.gif" title="点击查看完整动图"><img src="docs/assets/seating-demo.gif" width="100%" alt="未排座宾客选择及圆桌安排演示" /></a>
     </td>
   </tr>
 </table>

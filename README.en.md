@@ -32,12 +32,12 @@
     <td width="500" align="center" valign="top">
       <b>Guests &amp; bulk updates</b><br />
       <sub>Browse 10 records per page and update guest statuses together</sub><br /><br />
-      <a href="docs/assets/guests-demo.gif" title="View the full-size animation"><img src="docs/assets/guests-demo.gif" width="300" alt="Guest pagination and bulk status updates demonstration" /></a>
+      <a href="docs/assets/guests-demo.gif" title="View the full-size animation"><img src="docs/assets/guests-demo.gif" width="100%" alt="Guest pagination and bulk status updates demonstration" /></a>
     </td>
     <td width="500" align="center" valign="top">
       <b>Round-table seating</b><br />
       <sub>Seat unassigned guests and see available table capacity</sub><br /><br />
-      <a href="docs/assets/seating-demo.gif" title="View the full-size animation"><img src="docs/assets/seating-demo.gif" width="300" alt="Unassigned guest selection and round-table seating demonstration" /></a>
+      <a href="docs/assets/seating-demo.gif" title="View the full-size animation"><img src="docs/assets/seating-demo.gif" width="100%" alt="Unassigned guest selection and round-table seating demonstration" /></a>
     </td>
   </tr>
 </table>
