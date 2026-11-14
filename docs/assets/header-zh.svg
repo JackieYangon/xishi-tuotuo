@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="280" viewBox="0 0 1280 280" role="img" aria-labelledby="title description">
+  <title id="title">喜事妥妥</title>
+  <desc id="description">暖玫瑰红到蓝紫色的渐变横幅，白色喜事妥妥标题，底部轻柔波浪。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1280" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a65f6a" />
+      <stop offset="0.5" stop-color="#866b84" />
+      <stop offset="1" stop-color="#626da2" />
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="0" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff6ee" stop-opacity="0.05" />
+      <stop offset="1" stop-color="#fff6ee" stop-opacity="0" />
+    </linearGradient>
+    <clipPath id="wave-edge">
+      <path d="M0 0H1280V254C1095 230 968 206 800 215C540 232 430 255 236 239C144 232 77 233 0 247Z" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#wave-edge)">
+    <path fill="url(#background)" d="M0 0H1280V280H0Z" />
+    <path fill="url(#light)" d="M0 0H1280V280H0Z" />
+    <path fill="#fff8f3" opacity="0.23" d="M0 219C165 254 373 259 571 237S984 177 1280 252V280H0Z" />
+  </g>
+  <g fill="#fffaf7" text-anchor="middle" font-family="'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif">
+    <text x="640" y="48" font-size="14" letter-spacing="5" opacity="0.82">XISHI TUOTUO</text>
+    <text x="648" y="151" font-size="100" font-weight="700" letter-spacing="16">喜事妥妥</text>
+    <text x="640" y="196" font-size="20" letter-spacing="3" opacity="0.9">把喜事，一件件安排妥当</text>
+  </g>
+</svg>

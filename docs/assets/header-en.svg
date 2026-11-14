@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="280" viewBox="0 0 1280 280" role="img" aria-labelledby="title description">
+  <title id="title">Xishi Tuotuo</title>
+  <desc id="description">A warm rose to blue-violet gradient banner with a white Xishi Tuotuo title and a soft transparent wave along the bottom.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1280" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a65f6a" />
+      <stop offset="0.5" stop-color="#866b84" />
+      <stop offset="1" stop-color="#626da2" />
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="0" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff6ee" stop-opacity="0.05" />
+      <stop offset="1" stop-color="#fff6ee" stop-opacity="0" />
+    </linearGradient>
+    <clipPath id="wave-edge">
+      <path d="M0 0H1280V254C1095 230 968 206 800 215C540 232 430 255 236 239C144 232 77 233 0 247Z" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#wave-edge)">
+    <path fill="url(#background)" d="M0 0H1280V280H0Z" />
+    <path fill="url(#light)" d="M0 0H1280V280H0Z" />
+    <path fill="#fff8f3" opacity="0.23" d="M0 219C165 254 373 259 571 237S984 177 1280 252V280H0Z" />
+  </g>
+  <g fill="#fffaf7" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+    <text x="640" y="48" font-size="14" letter-spacing="5" opacity="0.82">WEDDING PLANNING</text>
+    <text x="643" y="149" font-size="80" font-weight="700" letter-spacing="6">XISHI TUOTUO</text>
+    <text x="640" y="196" font-size="20" letter-spacing="1.5" opacity="0.9">Every detail, thoughtfully arranged.</text>
+  </g>
+</svg>

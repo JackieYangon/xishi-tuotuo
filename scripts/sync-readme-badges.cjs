@@ -10,7 +10,13 @@ const block = `<!-- badges:start -->
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
   <a href="https://vuejs.org/"><img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&amp;logo=vuedotjs&amp;logoColor=white" /></a>
+</p>
+<p align="center">
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" /></a>
+  <img alt="Node.js 20 or newer" src="https://img.shields.io/badge/Node.js-%3E%3D20-5f8054?style=flat-square&amp;logo=nodedotjs&amp;logoColor=white" />
+  <img alt="WeChat Cloud Development" src="https://img.shields.io/badge/Cloud-WeChat-638c80?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
+  <img alt="Export XLSX" src="https://img.shields.io/badge/Export-XLSX-5f8054?style=flat-square" />
+  <img alt="Personal and family modes" src="https://img.shields.io/badge/Mode-Personal_%2F_Family-984354?style=flat-square" />
 </p>
 <!-- badges:end -->`;
 for (const name of ['README.md', 'README.en.md']) {
