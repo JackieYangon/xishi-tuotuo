@@ -1,7 +1,7 @@
 <h1 align="center">Xishi Tuotuo</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.2.0" src="https://img.shields.io/badge/version-2.2.0-00866a?style=flat-square" />
+  <img alt="version 2.3.0" src="https://img.shields.io/badge/version-2.3.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -22,7 +22,7 @@
 | Planning tasks | Add, assign and complete tasks, set due dates and work through preparation stages. |
 | Supplies | Organize wedding items, quantities and preparation status. |
 | Vendors | Keep contact details, quotes, discussion notes and booking status together. |
-| Guest arrangements | Browse 10 guest or family records per page, jump between pages, and search or filter the full list; group members update party sizes, attendance and accommodation needs. |
+| Guest arrangements | Browse 10 guest or family records per page, jump between pages, and search or filter the full list. Select guests across pages or all filtered results to update attendance, accommodation needs and guest groups in bulk. |
 | Round-table seating | Arrange guests around visual round tables with 10 seats, 12 seats or a custom capacity, and check remaining seats. |
 | Wedding-day timeline | Plan times, responsible people and notes for each part of the day. |
 | Accommodation | Organize hotels, rooms and stays for guests travelling from elsewhere. |

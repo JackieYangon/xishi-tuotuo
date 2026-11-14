@@ -348,6 +348,36 @@ function createService({ repo, storage, allowedAppId, now = () => Date.now(), ra
           group.joinCodeExpiresAt = now() + 7 * DAY;
         }, true);
         await cleanupAvatar(data.group.id, removedAvatar);
+      } else if (event.action === 'guests.batchUpdate') {
+        data = await mutate(payload, userId, group => {
+          if (!Array.isArray(payload.guestIds) || !payload.guestIds.length || payload.guestIds.length > MAX_RECORDS.guests) {
+            fail('INVALID_INPUT', '请选择 1 至 500 组宾客');
+          }
+          const guestIds = new Set(payload.guestIds.map(value => id(value, '宾客标识')));
+          const input = object(payload.changes);
+          const keys = Object.keys(input);
+          if (!keys.length || keys.some(key => !['attendance', 'needsLodging', 'side'].includes(key) || input[key] === undefined)) {
+            fail('INVALID_INPUT', '请选择有效的出席状态、住宿需求或亲友分组');
+          }
+          const changes = {};
+          for (const key of keys) {
+            if (key === 'attendance') changes.attendance = choice(input.attendance, ['pending', 'yes', 'no'], '', '出席状态');
+            if (key === 'needsLodging') changes.needsLodging = bool(input.needsLodging);
+            if (key === 'side') changes.side = choice(input.side, ['bride', 'groom', 'shared'], '', '宾客分组');
+          }
+          if ([...guestIds].some(guestId => !group.guests.some(guest => guest.id === guestId))) {
+            fail('INVALID_INPUT', '部分宾客已被删除，请刷新名单后重新选择');
+          }
+          // Validate the complete request before applying any changes in this transaction.
+          group.guests = group.guests.map(guest => guestIds.has(guest.id) ? { ...guest, ...changes } : guest);
+          let unseatedCount = 0;
+          if (keys.includes('attendance')) {
+            group.guests.filter(guest => guestIds.has(guest.id)).forEach(guest => {
+              if (checkSeating(group, guest, true)) unseatedCount++;
+            });
+          }
+          return { updatedCount: guestIds.size, warning: unseatedCount ? `已取消 ${unseatedCount} 组宾客原有的桌位安排，请按需重新安排` : '' };
+        });
       } else if (event.action === 'records.save') {
         data = await mutate(payload, userId, group => {
           const type = choice(payload.type, TYPES, '', '记录类型');

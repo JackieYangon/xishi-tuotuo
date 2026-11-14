@@ -29,7 +29,7 @@
     </view>
     <view class="search-box">
       <text class="search-symbol">⌕</text>
-      <input class="search-input" :value="(state.query)" :placeholder="(state.config.search)" @input="onSearch" maxlength="80" confirm-type="search" />
+      <input class="search-input" :value="(state.query)" :placeholder="(state.config.search)" @input="onSearch" maxlength="80" confirm-type="search" :disabled="state.batchSaving" />
     </view>
     <scroll-view class="filter-scroll" scroll-x enhanced :show-scrollbar="(false)">
       <view class="filter-row">
@@ -37,6 +37,15 @@
       </view>
     </scroll-view>
     <view class="list-caption">{{ state.query || state.filter !== 'all' ? '筛选结果' : '全部记录' }} · {{ state.total }} {{ state.type === 'guests' ? '组' : '条' }}<text v-if="state.type === 'guests' && state.total"> · 每页 10 组</text><text v-if="state.loading"> · 更新中</text></view>
+    <view v-if="state.batchMode" class="batch-selection-bar">
+      <view class="batch-selection-summary">已选 {{ state.batchIds.length }} 组 · {{ state.batchPeople }} 人</view>
+      <view class="batch-selection-actions">
+        <button class="mini-action" @tap="toggleBatchPage" :disabled="!state.rows.length || state.loading || state.batchSaving">{{ state.batchPageSelected ? '取消本页' : '全选本页' }}</button>
+        <button class="mini-action" @tap="selectFilteredGuests" :disabled="!state.total || state.loading || state.batchSaving">全选筛选结果（{{ state.total }} 组）</button>
+        <button class="mini-action" @tap="clearBatchSelection" :disabled="!state.batchIds.length || state.batchSaving">清空</button>
+      </view>
+      <view class="muted batch-hint">可跨页选择；更换搜索或筛选会清空选择。</view>
+    </view>
 
     <view v-if="!state.rows.length" class="card empty">
       <view class="empty-mark">{{ state.allCount ? '⌕' : '＋' }}</view>
@@ -46,6 +55,9 @@
 
     <view v-for="(item, index) in state.rows" :key="item.id" :class="'card record-card ' + (state.type === 'tasks' && item.done ? 'record-complete' : '')">
       <view class="record-top">
+        <checkbox-group v-if="state.batchMode" class="batch-checkbox" :data-id="item.id" @change="toggleBatchGuest">
+          <label class="batch-choice"><checkbox :value="item.id" :checked="item.batchChecked" :aria-label="'选择' + item.heading" color="#984354" :disabled="state.loading || state.batchSaving" /></label>
+        </checkbox-group>
         <button v-if="state.type === 'tasks'" :class="'check-button ' + (item.done ? 'is-checked' : '')" :data-id="(item.id)" @tap="toggleDone" :disabled="(!!state.pendingId)" :aria-label="(item.done ? '标记未完成' : '标记完成')">{{ item.done ? '✓' : '' }}</button>
         <view class="record-main" :data-id="(item.id)" @tap="openEdit">
           <view class="record-title">{{ item.heading }}</view>
@@ -66,7 +78,7 @@
       </view>
       <view v-if="state.type === 'lodgings' && item.guestNames" class="extra-line guest-names">入住：{{ item.guestNames }}</view>
       <view v-if="item.note" class="record-note">{{ item.note }}</view>
-      <view class="record-actions">
+      <view v-if="!state.batchMode" class="record-actions">
         <button v-if="state.type === 'items' && item.status !== 'ready'" class="mini-action accent-action" :data-id="(item.id)" @tap="advanceItem" :loading="(state.pendingId === item.id)" :disabled="(!!state.pendingId)">{{ item.status === 'pending' ? '标记已购买' : '标记已备齐' }}</button>
         <view class="action-spacer"></view>
         <button class="mini-action" :data-id="(item.id)" @tap="openEdit" :disabled="(!!state.pendingId)">编辑</button>
@@ -76,13 +88,20 @@
 
     <view class="bottom-action">
       <view v-if="state.type === 'guests' && state.pageCount > 1" class="guest-pagination">
-        <button class="page-button previous-page" :data-page="state.currentPage - 1" @tap="onPageChange" :disabled="state.currentPage <= 1 || state.loading || !!state.pendingId">上一页</button>
-        <picker class="page-picker" :range="state.pageOptions" :value="state.currentPage - 1" @change="onPagePick" :disabled="state.loading || !!state.pendingId">
+        <button class="page-button previous-page" :data-page="state.currentPage - 1" @tap="onPageChange" :disabled="state.currentPage <= 1 || state.loading || !!state.pendingId || state.batchSaving">上一页</button>
+        <picker class="page-picker" :range="state.pageOptions" :value="state.currentPage - 1" @change="onPagePick" :disabled="state.loading || !!state.pendingId || state.batchSaving">
           <view class="page-position">第 {{ state.currentPage }} / {{ state.pageCount }} 页 <text class="picker-arrow">⌄</text></view>
         </picker>
-        <button class="page-button next-page" :data-page="state.currentPage + 1" @tap="onPageChange" :disabled="state.currentPage >= state.pageCount || state.loading || !!state.pendingId">下一页</button>
+        <button class="page-button next-page" :data-page="state.currentPage + 1" @tap="onPageChange" :disabled="state.currentPage >= state.pageCount || state.loading || !!state.pendingId || state.batchSaving">下一页</button>
       </view>
-      <button class="button-primary add-button" @tap="openAdd" :disabled="(state.loading || !!state.pendingId)">＋ 添加{{ state.config.singular }}</button>
+      <view v-if="state.batchMode" class="guest-main-actions">
+        <button class="button-secondary" @tap="cancelBatch" :disabled="state.batchSaving">退出批量</button>
+        <button class="button-primary batch-edit-button" @tap="openBatchEditor" :disabled="!state.batchIds.length || state.loading || state.batchSaving">修改所选（{{ state.batchIds.length }} 组）</button>
+      </view>
+      <view v-else class="guest-main-actions">
+        <button v-if="state.type === 'guests'" class="button-secondary batch-start-button" @tap="startBatch" :disabled="!state.allCount || state.loading || !!state.pendingId">批量修改状态</button>
+        <button class="button-primary add-button" @tap="openAdd" :disabled="(state.loading || !!state.pendingId)">＋ 添加{{ state.config.singular }}</button>
+      </view>
     </view>
   </template>
 </view>
@@ -138,6 +157,35 @@
   </view>
 </view>
 
+<view v-if="state.batchEditorOpen" class="editor-mask batch-editor-mask" @tap.stop="closeBatchEditor" @touchmove.stop="stopTap">
+  <view class="editor-sheet" @tap.stop="stopTap">
+    <view class="editor-heading">
+      <view><view class="eyebrow">已选择 {{ state.batchIds.length }} 组 · {{ state.batchPeople }} 人</view><view class="editor-title">批量修改状态</view></view>
+      <button class="close-editor" @tap="closeBatchEditor" :disabled="state.batchSaving" aria-label="关闭批量修改">×</button>
+    </view>
+    <scroll-view class="editor-scroll" scroll-y enhanced :show-scrollbar="false">
+      <view class="editor-body">
+        <scroll-view class="batch-selected-names" scroll-y><view class="batch-names-content">{{ state.batchNames }}</view></scroll-view>
+        <view class="muted batch-hint">只修改选定的项目，其余保持原样。</view>
+        <view v-for="field in state.batchFields" :key="field.key" class="field form-field">
+          <view class="label">{{ field.label }}</view>
+          <picker class="batch-field-picker" :range="field.options" range-key="label" :value="field.selected" :data-key="field.key" @change="onBatchPicker" :disabled="state.batchSaving || state.batchConflict">
+            <view class="input picker-value">{{ field.display }}<text class="picker-arrow">⌄</text></view>
+          </picker>
+        </view>
+        <view v-if="state.batchForm.attendance === 'no'" class="muted batch-hint">标记为不出席后，会取消所选宾客原有的桌位安排。</view>
+        <view v-if="state.batchForm.needsLodging === false || state.batchForm.attendance === 'no'" class="muted batch-hint">已有住宿安排会保留，可到「亲友住宿」调整。</view>
+        <view v-if="state.batchError" class="draft-error">{{ state.batchError }}</view>
+        <button v-if="state.batchConflict" class="button-secondary batch-restart-button" @tap="restartBatch" :disabled="state.batchSaving || state.loading">重新载入并重新选择</button>
+      </view>
+    </scroll-view>
+    <view class="editor-footer">
+      <button class="button-secondary cancel-button" @tap="closeBatchEditor" :disabled="state.batchSaving">返回选择</button>
+      <button class="button-primary save-button batch-save-button" @tap="saveBatch" :loading="state.batchSaving" :disabled="state.batchSaving || state.batchConflict || state.loading">{{ state.batchSaving ? '正在保存' : '应用修改' }}</button>
+    </view>
+  </view>
+</view>
+
 </template>
 
 <script lang="ts">
@@ -147,6 +195,18 @@ import service from '../../utils/service';
 import catalog from '../../utils/catalog';
 
 const GUEST_PAGE_SIZE = 10;
+
+function makeBatchFields(form) {
+    const keep = { value: '', label: '保持原样' };
+    return [
+        { key: 'attendance', label: '出席状态', options: [keep, ...catalog.guests.fields.find(field => field.key === 'attendance').options] },
+        { key: 'needsLodging', label: '住宿需求', options: [keep, { value: true, label: '需要住宿' }, { value: false, label: '不需要住宿' }] },
+        { key: 'side', label: '亲友分组', options: [keep, ...catalog.guests.fields.find(field => field.key === 'side').options] }
+    ].map(field => {
+        const selected = Math.max(0, field.options.findIndex(option => option.value === form[field.key]));
+        return { ...field, selected, display: field.options[selected].label };
+    });
+}
 
 function localDate() {
   const d = new Date();
@@ -166,6 +226,8 @@ export default defineComponent({
     type: 'tasks', config: catalog.tasks, loading: true, error: '', noGroup: false,
     query: '', filter: 'all', rows: [], stats: [], total: 0, allCount: 0,
     currentPage: 1, pageCount: 1, pageOptions: [],
+    batchMode: false, batchEditorOpen: false, batchIds: [], batchPeople: 0, batchNames: '', batchPageSelected: false,
+    batchForm: { attendance: '', needsLodging: '', side: '' }, batchFields: [], batchError: '', batchConflict: false, batchSaving: false,
     editorOpen: false, editingId: '', form: {}, fields: [], saving: false,
     pendingId: '', draftError: '', editorConflict: false, lodgingUnassigned: 0
   } as Record<string, any>, runtime: {} as Record<string, any> }; },
@@ -184,8 +246,10 @@ async load() {
     updateState(this.state, { loading: true, error: '', noGroup: false });
     try {
         const group = await service.getGroup();
-        if (this.runtime._group && this.runtime._group.id !== group.id)
+        if (this.runtime._group && this.runtime._group.id !== group.id) {
             updateState(this.state, { currentPage: 1 });
+            this.resetBatch();
+        }
         this.runtime._group = group;
         this.runtime._revision = this.runtime._group.revision;
         this.renderRecords();
@@ -194,6 +258,7 @@ async load() {
     }
     catch (error) {
         if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
+            this.resetBatch();
             this.runtime._group = null;
             updateState(this.state, { rows: [], stats: [], form: {}, fields: [], editorOpen: false, noGroup: true, currentPage: 1, pageCount: 1, pageOptions: [], total: 0, allCount: 0 });
         }
@@ -250,6 +315,7 @@ renderRecords() {
             row.quoteLabel = Number(record.quote) > 0 ? '报价 ¥' + Number(record.quote).toLocaleString('zh-CN') : '报价待确认';
         }
         else if (type === 'guests') {
+            row.batchChecked = this.state.batchIds.includes(record.id);
             row.statusLabel = optionsText(catalog.guests.fields, 'attendance', record.attendance);
             row.statusClass = record.attendance === 'yes' ? 'status-done' : record.attendance === 'no' ? 'status-muted' : '';
             const table = (group.tables || []).find(item => item.id === record.tableId);
@@ -318,21 +384,35 @@ renderRecords() {
         updateState(this.state, { lodgingUnassigned: countPeople(unassigned) });
     }
     const total = rows.length;
+    this.runtime._filteredGuestIds = type === 'guests' ? rows.map(row => row.id) : [];
     const pageCount = type === 'guests' ? Math.max(1, Math.ceil(total / GUEST_PAGE_SIZE)) : 1;
     const currentPage = Math.min(Math.max(1, this.state.currentPage), pageCount);
     const visibleRows = type === 'guests' ? rows.slice((currentPage - 1) * GUEST_PAGE_SIZE, currentPage * GUEST_PAGE_SIZE) : rows;
     updateState(this.state, {
         rows: visibleRows, stats, total, allCount: source.length, currentPage, pageCount,
+        batchPageSelected: visibleRows.length > 0 && visibleRows.every(row => this.state.batchIds.includes(row.id)),
+        batchPeople: countPeople(guests.filter(guest => this.state.batchIds.includes(guest.id))),
+        batchNames: guests.filter(guest => this.state.batchIds.includes(guest.id)).map(guest => guest.name).join('、'),
         pageOptions: type === 'guests' ? Array.from({ length: pageCount }, (_, index) => '第 ' + (index + 1) + ' 页') : []
     });
 },
-onSearch(event) { updateState(this.state, { query: event.detail.value, currentPage: 1 }); this.renderRecords(); },
-onFilter(event) { updateState(this.state, { filter: event.currentTarget.dataset.value, currentPage: 1 }); this.renderRecords(); },
+onSearch(event) {
+    if (this.state.batchSaving || this.state.batchEditorOpen) return;
+    const query = event.detail.value;
+    if (query !== this.state.query) this.clearBatchSelection();
+    updateState(this.state, { query, currentPage: 1 }); this.renderRecords();
+},
+onFilter(event) {
+    if (this.state.batchSaving || this.state.batchEditorOpen) return;
+    const filter = event.currentTarget.dataset.value;
+    if (filter !== this.state.filter) this.clearBatchSelection();
+    updateState(this.state, { filter, currentPage: 1 }); this.renderRecords();
+},
 scrollToGuestList() {
     nextTick(() => wx.pageScrollTo({ scrollTop: 0, duration: 200 }));
 },
 goToPage(value) {
-    if (this.state.type !== 'guests' || this.state.loading || this.state.saving || this.state.pendingId || this.state.editorOpen)
+    if (this.state.type !== 'guests' || this.state.loading || this.state.saving || this.state.pendingId || this.state.editorOpen || this.state.batchEditorOpen || this.state.batchSaving)
         return;
     const requested = Number(value);
     if (!Number.isInteger(requested))
@@ -346,8 +426,141 @@ goToPage(value) {
 },
 onPageChange(event) { this.goToPage(event.currentTarget.dataset.page); },
 onPagePick(event) { this.goToPage(Number(event.detail.value) + 1); },
+resetBatch() {
+    this.runtime._batchEpoch = (this.runtime._batchEpoch || 0) + 1;
+    updateState(this.state, {
+        batchMode: false, batchEditorOpen: false, batchIds: [], batchPeople: 0, batchNames: '', batchPageSelected: false,
+        batchForm: { attendance: '', needsLodging: '', side: '' }, batchFields: [], batchError: '', batchConflict: false, batchSaving: false
+    });
+    delete this.runtime._batchRevision;
+    delete this.runtime._batchGroupId;
+},
+startBatch() {
+    if (this.state.type !== 'guests' || !this.runtime._group || this.state.loading || this.state.saving || this.state.pendingId || this.state.editorOpen || this.state.batchMode)
+        return;
+    this.resetBatch();
+    this.runtime._batchRevision = this.runtime._revision;
+    this.runtime._batchGroupId = this.runtime._group.id;
+    updateState(this.state, { batchMode: true, batchFields: makeBatchFields(this.state.batchForm) });
+    this.renderRecords();
+},
+cancelBatch() {
+    if (this.state.batchSaving) return;
+    this.resetBatch();
+    this.renderRecords();
+},
+canSelectBatch() {
+    return this.state.batchMode && !this.state.loading && !this.state.batchSaving && !this.state.batchEditorOpen;
+},
+toggleBatchGuest(event) {
+    if (!this.canSelectBatch()) return;
+    const id = event.currentTarget.dataset.id;
+    if (!(this.runtime._group.guests || []).some(guest => guest.id === id)) return;
+    const selected = this.state.batchIds.includes(id);
+    updateState(this.state, { batchIds: selected ? this.state.batchIds.filter(value => value !== id) : this.state.batchIds.concat(id) });
+    this.renderRecords();
+},
+toggleBatchPage() {
+    if (!this.canSelectBatch()) return;
+    const ids = this.state.rows.map(row => row.id);
+    const batchIds = this.state.batchPageSelected
+        ? this.state.batchIds.filter(id => !ids.includes(id))
+        : [...new Set([...this.state.batchIds, ...ids])];
+    updateState(this.state, { batchIds });
+    this.renderRecords();
+},
+selectFilteredGuests() {
+    if (!this.canSelectBatch()) return;
+    updateState(this.state, { batchIds: [...(this.runtime._filteredGuestIds || [])] });
+    this.renderRecords();
+},
+clearBatchSelection() {
+    if (!this.state.batchMode || this.state.batchSaving || this.state.batchEditorOpen) return;
+    updateState(this.state, { batchIds: [] });
+    this.renderRecords();
+},
+openBatchEditor() {
+    if (!this.canSelectBatch() || !this.state.batchIds.length) return;
+    updateState(this.state, { batchEditorOpen: true, batchFields: makeBatchFields(this.state.batchForm) });
+},
+closeBatchEditor() {
+    if (this.state.batchSaving) return;
+    updateState(this.state, { batchEditorOpen: false });
+},
+onBatchPicker(event) {
+    if (!this.state.batchEditorOpen || this.state.batchSaving || this.state.batchConflict) return;
+    const key = event.currentTarget.dataset.key;
+    const field = this.state.batchFields.find(item => item.key === key);
+    const option = field && field.options[Number(event.detail.value)];
+    if (!option) return;
+    updateState(this.state, { ['batchForm.' + key]: option.value, batchError: '' });
+    updateState(this.state, { batchFields: makeBatchFields(this.state.batchForm) });
+},
+async restartBatch() {
+    if (this.state.batchSaving || this.state.loading) return;
+    await this.load();
+    if (this.state.error || !this.runtime._group) return;
+    this.resetBatch();
+    updateState(this.state, { currentPage: 1 });
+    this.startBatch();
+    this.scrollToGuestList();
+},
+async saveBatch() {
+    if (!this.state.batchMode || this.state.batchSaving || this.state.batchConflict || this.state.loading) return;
+    if (!this.state.batchIds.length) {
+        updateState(this.state, { batchError: '请先选择要修改的宾客' });
+        return;
+    }
+    const changes = {};
+    for (const key of ['attendance', 'needsLodging', 'side']) {
+        if (this.state.batchForm[key] !== '') changes[key] = this.state.batchForm[key];
+    }
+    if (!Object.keys(changes).length) {
+        updateState(this.state, { batchError: '请至少选择一项要修改的状态' });
+        return;
+    }
+    const batchEpoch = this.runtime._batchEpoch;
+    const batchGroupId = this.runtime._batchGroupId;
+    updateState(this.state, { batchSaving: true, batchError: '' });
+    try {
+        if (service.getGroupId() !== batchGroupId) {
+            const error = Object.assign(new Error('当前婚礼已切换，请重新选择宾客'), { code: 'GROUP_CHANGED' });
+            throw error;
+        }
+        const guestIds = [...this.state.batchIds];
+        const result = await service.mutate('guests.batchUpdate', { guestIds, changes }, this.runtime._batchRevision);
+        if (this.runtime._batchEpoch !== batchEpoch) return;
+        if (service.getGroupId() !== batchGroupId) {
+            this.resetBatch();
+            await this.load();
+            return;
+        }
+        await this.refreshAfterMutation(result);
+        if (this.runtime._batchEpoch !== batchEpoch) return;
+        this.resetBatch();
+        this.renderRecords();
+        wx.showToast({ title: '已修改 ' + guestIds.length + ' 组', icon: 'success' });
+    }
+    catch (error) {
+        if (this.runtime._batchEpoch !== batchEpoch) return;
+        updateState(this.state, { batchError: error.message || '保存失败，选择和修改内容已保留，请重试' });
+        if (['CONFLICT', 'REVISION_CONFLICT'].includes(error.code)) {
+            updateState(this.state, { batchConflict: true });
+            await this.load();
+            if (this.state.batchMode) updateState(this.state, { batchError: '名单已被更新，本次未覆盖任何记录。你的选择和修改内容已保留，请重新载入并重新选择。' });
+        }
+        else if (['GROUP_CHANGED', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
+            this.resetBatch();
+            await this.load();
+            wx.showToast({ title: error.message, icon: 'none' });
+        }
+    }
+    finally {
+        if (this.runtime._batchEpoch === batchEpoch) updateState(this.state, { batchSaving: false });
+    }
+},
 openAdd() {
-    if (!this.runtime._group || this.state.saving || this.state.pendingId)
+    if (!this.runtime._group || this.state.saving || this.state.pendingId || this.state.batchMode)
         return;
     const form = JSON.parse(JSON.stringify(this.state.config.defaults));
     if (this.state.type === 'lodgings') {
@@ -361,6 +574,7 @@ openAdd() {
     this.renderFields();
 },
 openEdit(event) {
+    if (this.state.batchMode) { this.toggleBatchGuest(event); return; }
     if (this.state.saving || this.state.pendingId)
         return;
     const record = (this.runtime._group[this.state.type] || []).find(item => item.id === event.currentTarget.dataset.id);
@@ -457,7 +671,7 @@ validateForm() {
     return record;
 },
 async save() {
-    if (this.state.saving || this.state.editorConflict)
+    if (this.state.saving || this.state.editorConflict || this.state.batchMode)
         return;
     let record;
     try {
@@ -572,7 +786,7 @@ async advanceItem(event) {
     }
 },
 async remove(event) {
-    if (this.state.pendingId || this.state.saving)
+    if (this.state.pendingId || this.state.saving || this.state.batchMode)
         return;
     const id = event.currentTarget.dataset.id;
     const record = (this.runtime._group[this.state.type] || []).find(item => item.id === id);
@@ -659,6 +873,17 @@ goSeats() { wx.navigateTo({ url: '/pages/seating/index' }); }
 .error-description { margin-bottom: 30rpx; line-height: 1.8; }
 .bottom-action { position: fixed; left: 0; right: 0; bottom: 0; padding: 22rpx 32rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); background: rgba(252, 248, 243, .96); border-top: 1rpx solid #ece1db; z-index: 10; }
 .guest-pagination { display: flex; align-items: center; gap: 16rpx; margin-bottom: 18rpx; }
+.guest-main-actions { display: flex; gap: 16rpx; }
+.guest-main-actions > button { flex: 1; min-width: 0; white-space: nowrap; padding-left: 14rpx; padding-right: 14rpx; }
+.batch-selection-bar { background: #f3eae4; border-radius: 18rpx; padding: 22rpx; margin-bottom: 24rpx; }
+.batch-selection-summary { color: #843c4b; font-size: 27rpx; font-weight: 600; }
+.batch-selection-actions { display: flex; flex-wrap: wrap; gap: 6rpx; margin: 10rpx -12rpx 0; }
+.batch-selection-actions .mini-action { color: #984354; }
+.batch-hint { font-size: 23rpx; line-height: 1.7; margin-top: 12rpx; }
+.batch-checkbox { flex-shrink: 0; padding-top: 4rpx; }
+.batch-choice { display: flex; align-items: center; min-height: 60rpx; }
+.batch-selected-names { width: 100%; height: 130rpx; color: #6f574e; font-size: 25rpx; line-height: 1.8; background: #f7f2ed; border-radius: 14rpx; word-break: break-all; }
+.batch-names-content { padding: 18rpx; }
 .page-button { margin: 0; padding: 0 24rpx; line-height: 68rpx; border-radius: 14rpx; font-size: 25rpx; color: #984354; background: #f2e8e4; flex-shrink: 0; }
 .page-button::after { border: none; }
 .page-button[disabled] { color: #b5a59b; background: #f3eee8; }

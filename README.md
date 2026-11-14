@@ -1,7 +1,7 @@
 <h1 align="center">喜事妥妥</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.2.0" src="https://img.shields.io/badge/version-2.2.0-00866a?style=flat-square" />
+  <img alt="version 2.3.0" src="https://img.shields.io/badge/version-2.3.0-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
@@ -22,7 +22,7 @@
 | 筹备事项 | 添加、分配和完成事项，记录截止日期，按准备阶段推进。 |
 | 物品清单 | 整理婚礼用品、数量及准备状态。 |
 | 商家记录 | 集中保存商家联系方式、报价、沟通备注和预订状态。 |
-| 宾客安排 | 整理亲友名单和同行人数，每页显示 10 组并支持翻页、选页与搜索筛选，由群组成员维护出席状态与住宿需求。 |
+| 宾客安排 | 整理亲友名单和同行人数，每页显示 10 组并支持翻页、选页与搜索筛选；可跨页勾选或全选筛选结果，批量修改出席状态、住宿需求和亲友分组。 |
 | 圆桌排座 | 用模拟圆桌查看座位，支持 10 人桌、12 人桌及自定义容量，安排宾客并检查余位。 |
 | 当天流程 | 按时间整理各个环节、负责人和注意事项。 |
 | 住宿安排 | 记录外地亲友的酒店、房间和入住安排。 |

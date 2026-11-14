@@ -341,6 +341,130 @@ test('table capacity validates party sizes and custom capacities', async () => {
   assert.equal(group.tables[1].capacity, 7);
 });
 
+test('guest batch updates only selected fields and guests in a single revision', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '第一家', partySize: 3, attendance: 'pending', needsLodging: true, side: 'groom', relation: '同学', phone: '12345', note: '保留备注' });
+  group = await env.save(group, 'guests', { name: '第二家', partySize: 2, attendance: 'pending', needsLodging: true, side: 'bride' });
+  group = await env.save(group, 'guests', { name: '未选亲友', attendance: 'no', needsLodging: true });
+  const before = copy(group);
+  const guestIds = [group.guests[0].id, group.guests[1].id, group.guests[0].id];
+  const result = await env.ok('guests.batchUpdate', { groupId: group.id, revision: group.revision, guestIds, changes: { attendance: 'yes', needsLodging: false } });
+  assert.equal(result.updatedCount, 2, 'Duplicate IDs are updated once');
+  assert.equal(result.warning, '');
+  assert.equal(result.group.revision, before.revision + 1, 'One batch commits one revision');
+  assert.deepEqual(result.group.guests.slice(0, 2), before.guests.slice(0, 2).map(guest => ({ ...guest, attendance: 'yes', needsLodging: false })));
+  assert.deepEqual(result.group.guests[2], before.guests[2]);
+  const sideOnly = await env.ok('guests.batchUpdate', { groupId: group.id, revision: result.group.revision, guestIds: [guestIds[0]], changes: { side: 'shared' } });
+  assert.deepEqual(sideOnly.group.guests[0], { ...result.group.guests[0], side: 'shared' });
+});
+
+test('guest batch attendance changes release seats while preserving room assignments', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'tables', { name: '亲友桌', capacity: 10 });
+  const tableId = group.tables[0].id;
+  group = await env.save(group, 'guests', { name: '第一家', partySize: 3, attendance: 'yes', needsLodging: true, tableId });
+  group = await env.save(group, 'guests', { name: '第二家', partySize: 2, attendance: 'yes', needsLodging: true, tableId });
+  group = await env.save(group, 'guests', { name: '未选亲友', partySize: 1, attendance: 'yes', tableId });
+  const guestIds = group.guests.slice(0, 2).map(guest => guest.id);
+  group = await env.save(group, 'lodgings', { hotel: '酒店', room: '101', guestIds, checkIn: '2027-05-19', checkOut: '2027-05-21' });
+  const rooms = copy(group.lodgings);
+  const result = await env.ok('guests.batchUpdate', { groupId: group.id, revision: group.revision, guestIds, changes: { attendance: 'no', needsLodging: false } });
+  assert.equal(result.group.guests[0].tableId, '');
+  assert.equal(result.group.guests[1].tableId, '');
+  assert.equal(result.group.guests[2].tableId, tableId);
+  assert.match(result.warning, /2 组/);
+  assert.deepEqual(result.group.lodgings, rooms, 'Changing lodging needs does not silently cancel existing reservations');
+});
+
+test('lodging-only and side-only batches preserve legacy seating until attendance is changed', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '旧记录亲友', attendance: 'yes', needsLodging: true, side: 'groom' });
+  const stored = await env.repo.get(group.id);
+  stored.guests[0].tableId = 'legacy-missing-table';
+  env.repo.groups.set(group.id, stored);
+  const base = { groupId: group.id, guestIds: [group.guests[0].id] };
+  const lodging = await env.ok('guests.batchUpdate', { ...base, revision: group.revision, changes: { needsLodging: false } });
+  assert.equal(lodging.group.guests[0].needsLodging, false);
+  assert.equal(lodging.group.guests[0].tableId, 'legacy-missing-table');
+  assert.equal(lodging.warning, '');
+  const side = await env.ok('guests.batchUpdate', { ...base, revision: lodging.group.revision, changes: { side: 'shared' } });
+  assert.equal(side.group.guests[0].side, 'shared');
+  assert.equal(side.group.guests[0].tableId, 'legacy-missing-table');
+  assert.equal(side.warning, '');
+  const attendance = await env.ok('guests.batchUpdate', { ...base, revision: side.group.revision, changes: { attendance: 'no' } });
+  assert.equal(attendance.group.guests[0].tableId, '');
+  assert.match(attendance.warning, /1 组/);
+});
+
+test('invalid guest batch input rejects every update without changing stored records', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '亲友', attendance: 'pending', needsLodging: true });
+  const guestId = group.guests[0].id;
+  const before = await env.repo.get(group.id);
+  const base = { groupId: group.id, revision: group.revision, guestIds: [guestId], changes: { attendance: 'yes' } };
+  const invalid = [
+    { guestIds: [] }, { guestIds: 'all' }, { guestIds: [guestId, null] },
+    { guestIds: Array(501).fill(guestId) },
+    { changes: {} }, { changes: null }, { changes: [] },
+    { changes: { attendance: 'maybe' } }, { changes: { attendance: undefined } },
+    { changes: { needsLodging: 'false' } }, { changes: { needsLodging: null } }, { changes: { needsLodging: undefined } },
+    { changes: { side: 'other' } }, { changes: { side: undefined } },
+    { changes: { attendance: 'yes', partySize: 10 } },
+    { changes: { attendance: 'yes', ownerId: 'visitor' } },
+    { changes: JSON.parse('{"attendance":"yes","__proto__":{}}') }
+  ];
+  for (const override of invalid) {
+    const result = await env.call('guests.batchUpdate', { ...base, ...override });
+    assert.equal(result.error.code, 'INVALID_INPUT');
+    assert.deepEqual(await env.repo.get(group.id), before, 'Invalid batches must not apply a partial update');
+  }
+});
+
+test('guest batches reject unknown and cross-group IDs without partially updating known guests', async () => {
+  const env = setup(); let first = await env.create(); let second = await env.create();
+  first = await env.save(first, 'guests', { name: '第一场亲友', attendance: 'pending' });
+  second = await env.save(second, 'guests', { name: '第二场亲友', attendance: 'pending' });
+  const firstBefore = await env.repo.get(first.id);
+  const secondBefore = await env.repo.get(second.id);
+  for (const unknownId of ['missing-guest', second.guests[0].id]) {
+    const result = await env.call('guests.batchUpdate', { groupId: first.id, revision: first.revision, guestIds: [first.guests[0].id, unknownId], changes: { attendance: 'yes' } });
+    assert.equal(result.error.code, 'INVALID_INPUT');
+    assert.deepEqual(await env.repo.get(first.id), firstBefore);
+    assert.deepEqual(await env.repo.get(second.id), secondBefore);
+  }
+});
+
+test('guest batches require current membership and revision and ignore claimed client identity', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '亲友', attendance: 'pending' });
+  const base = { groupId: group.id, revision: group.revision, guestIds: [group.guests[0].id], changes: { attendance: 'yes' } };
+  const before = await env.repo.get(group.id);
+  assert.equal((await env.call('guests.batchUpdate', { ...base, userId: 'owner', selfId: 'owner', ownerId: 'visitor' }, 'visitor')).error.code, 'FORBIDDEN');
+  assert.equal((await env.call('guests.batchUpdate', { ...base, revision: group.revision - 1 })).error.code, 'CONFLICT');
+  assert.equal((await env.call('guests.batchUpdate', base, 'owner', `wx${'2'.repeat(16)}`)).error.code, 'APP_NOT_ALLOWED');
+  assert.deepEqual(await env.repo.get(group.id), before);
+  group = (await env.ok('groups.join', { code: group.joinCode, nickname: '家人' }, 'dad')).group;
+  const updated = await env.ok('guests.batchUpdate', { ...base, revision: group.revision }, 'dad');
+  assert.equal(updated.group.guests[0].attendance, 'yes', 'Family members may maintain guests');
+  const stale = await env.call('guests.batchUpdate', { ...base, revision: group.revision, changes: { needsLodging: true } }, 'dad');
+  assert.equal(stale.error.code, 'CONFLICT');
+  assert.equal((await env.repo.get(group.id)).guests[0].needsLodging, false);
+  group = (await env.ok('groups.removeMember', { groupId: group.id, revision: updated.group.revision, memberId: 'dad' })).group;
+  assert.equal((await env.call('guests.batchUpdate', { ...base, revision: group.revision }, 'dad')).error.code, 'FORBIDDEN');
+});
+
+test('guest batch updates support the full 500-guest group capacity', async () => {
+  const env = setup(); let group = await env.create();
+  group = await env.save(group, 'guests', { name: '亲友模板', attendance: 'pending' });
+  const stored = await env.repo.get(group.id);
+  stored.guests = Array.from({ length: 500 }, (_, index) => ({ ...stored.guests[0], id: 'guest-' + index, name: '亲友' + index }));
+  env.repo.groups.set(group.id, stored);
+  const result = await env.ok('guests.batchUpdate', { groupId: group.id, revision: group.revision, guestIds: stored.guests.map(guest => guest.id), changes: { attendance: 'pending', needsLodging: true, side: 'bride' } });
+  assert.equal(result.updatedCount, 500);
+  assert.equal(result.group.revision, group.revision + 1);
+  assert.ok(result.group.guests.every(guest => guest.attendance === 'pending' && guest.needsLodging && guest.side === 'bride'));
+});
+
 test('deletions clean related seating and room lists', async () => {
   const env = setup();
   let group = await env.create();
