@@ -113,10 +113,10 @@
             <checkbox-group @change="onGuestsChange">
               <label v-for="(guest, index) in field.choices" :key="guest.id" class="guest-choice">
                 <checkbox :value="(guest.id)" :checked="(guest.checked)" color="#984354" :disabled="(state.saving)" />
-                <view class="guest-choice-name">{{ guest.name }}<text class="guest-choice-detail">{{ guest.partySize }} 人{{ guest.notAttending ? ' · 已确认不出席，可取消分配' : guest.needsLodging ? ' · 需住宿' : '' }}</text></view>
+                <view class="guest-choice-name">{{ guest.name }}<text class="guest-choice-detail">{{ guest.partySize }} 人{{ guest.notAttending ? ' · 已确认不出席，可取消分配' : guest.needsLodging ? ' · 需住宿' : ' · 未标记需要住宿，可取消分配' }}</text></view>
               </label>
             </checkbox-group>
-            <view v-if="!field.choices.length" class="muted guest-picker-hint">请先在宾客名单中添加亲友。</view>
+            <view v-if="!field.choices.length" class="muted guest-picker-hint">暂无可安排住宿的亲友。请先在宾客名单中勾选“需要安排住宿”，已确认不出席的亲友不会显示。</view>
           </view>
         </view>
         <view v-if="state.draftError" class="draft-error">{{ state.draftError }}</view>
@@ -347,7 +347,7 @@ renderFields() {
             result.display = result.options[result.selected].label;
         }
         if (field.kind === 'guests') {
-            result.choices = (group.guests || []).filter(guest => guest.attendance !== 'no' || (result.value || []).includes(guest.id)).map(guest => ({
+            result.choices = (group.guests || []).filter(guest => (guest.needsLodging && guest.attendance !== 'no') || (result.value || []).includes(guest.id)).map(guest => ({
                 id: guest.id, name: guest.name, partySize: guest.partySize,
                 needsLodging: guest.needsLodging, notAttending: guest.attendance === 'no', checked: (result.value || []).includes(guest.id)
             }));

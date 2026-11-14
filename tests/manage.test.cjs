@@ -80,6 +80,63 @@ test('quick completion sends the page snapshot revision instead of a changed cac
   assert.equal(calls[0].payload.record.done, true);
 });
 
+test('new lodging only offers guests marked as needing lodging who have not declined', () => {
+  const { page, group } = createPage();
+  group.guests = [
+    { id: 'confirmed', name: 'Confirmed family', partySize: 3, attendance: 'yes', needsLodging: true },
+    { id: 'pending', name: 'Pending family', partySize: 2, attendance: 'pending', needsLodging: true },
+    { id: 'local', name: 'Local family', partySize: 2, attendance: 'yes', needsLodging: false },
+    { id: 'unmarked', name: 'Unmarked guest', partySize: 1, attendance: 'pending' },
+    { id: 'declined', name: 'Declined family', partySize: 2, attendance: 'no', needsLodging: true }
+  ];
+  page.onLoad({ type: 'lodgings' });
+  page.renderRecords();
+  page.openAdd();
+  const field = page.state.fields.find(item => item.kind === 'guests');
+  assert.deepEqual(field.choices.map(guest => guest.id), ['confirmed', 'pending']);
+  assert.ok(field.choices.every(guest => !guest.checked));
+  assert.equal(field.selectedCount, 0);
+  assert.equal(page.state.lodgingUnassigned, 5);
+  page.onGuestsChange({ detail: { value: ['confirmed', 'pending'] } });
+  assert.equal(page.state.fields.find(item => item.kind === 'guests').selectedCount, 5);
+  page.onInput({ currentTarget: { dataset: { key: 'hotel' } }, detail: { value: 'Hotel' } });
+  assert.deepEqual(page.validateForm().guestIds, ['confirmed', 'pending']);
+});
+
+test('new lodging has no choices when nobody needs lodging', () => {
+  const { page, group } = createPage();
+  group.guests = [{ id: 'local', name: 'Local family', partySize: 2, attendance: 'yes', needsLodging: false }];
+  page.onLoad({ type: 'lodgings' });
+  page.openAdd();
+  const field = page.state.fields.find(item => item.kind === 'guests');
+  assert.deepEqual(field.choices, []);
+  assert.equal(field.selectedCount, 0);
+});
+
+test('lodging editor keeps guests who no longer need lodging visible until unassigned', async () => {
+  const { page, group, calls } = createPage();
+  group.guests = [
+    { id: 'changed', name: 'Changed family', partySize: 2, attendance: 'yes', needsLodging: false },
+    { id: 'eligible', name: 'Eligible guest', partySize: 1, attendance: 'pending', needsLodging: true },
+    { id: 'local', name: 'Local family', partySize: 3, attendance: 'yes', needsLodging: false }
+  ];
+  group.lodgings = [{ id: 'room-a', hotel: 'Hotel', room: '1001', checkIn: '2026-12-01', checkOut: '2026-12-02', guestIds: ['changed'], note: '' }];
+  page.onLoad({ type: 'lodgings' });
+  page.openEdit({ currentTarget: { dataset: { id: 'room-a' } } });
+  const field = page.state.fields.find(item => item.kind === 'guests');
+  assert.deepEqual(field.choices.map(guest => guest.id), ['changed', 'eligible']);
+  assert.equal(field.choices[0].checked, true);
+  assert.equal(field.choices[0].needsLodging, false);
+  assert.equal(field.selectedCount, 2);
+  assert.deepEqual(page.validateForm().guestIds, ['changed']);
+  page.onGuestsChange({ detail: { value: ['eligible'] } });
+  const updated = page.state.fields.find(item => item.kind === 'guests');
+  assert.deepEqual(updated.choices.map(guest => guest.id), ['eligible']);
+  assert.equal(updated.selectedCount, 1);
+  await page.save();
+  assert.deepEqual(calls[0].payload.record.guestIds, ['eligible']);
+});
+
 test('lodging editor exposes already assigned guests who later decline the invitation', () => {
   const { page, group } = createPage();
   group.guests = [{ id: 'declined', name: 'Declined family', partySize: 2, attendance: 'no', needsLodging: true }];
