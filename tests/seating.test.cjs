@@ -70,6 +70,124 @@ test('only eligible unseated guests contribute to waiting counts', () => {
   assert.equal(page.state.guestOptions.some(guest => guest.id === 'guest-c'), false);
 });
 
+test('new seat assignments offer only waiting guests including guests whose old table is gone', () => {
+  const group = fixture();
+  group.guests.push({ ...group.guests[1], id: 'orphan', name: 'Former table family', partySize: 2, tableId: 'deleted-table' });
+  const { page } = createPage(group);
+  page.openAssignment(event({ guest: 'guest-b' }));
+  assert.equal(page.state.assignmentMode, 'new');
+  assert.equal(page.state.assignGuestId, 'guest-b');
+  assert.deepEqual(page.state.guestOptions.filter(option => option.id).map(option => option.id), ['guest-b', 'orphan']);
+  assert.equal(page.state.waitingCount, 10);
+  page.openAssignment(event({ table: 'table-b' }));
+  assert.deepEqual(page.state.guestOptions.filter(option => option.id).map(option => option.id), ['guest-b', 'orphan']);
+  assert.equal(page.state.assignGuestId, '', 'A table-first entry must not pick a different guest automatically');
+});
+
+test('table choices exclude full tables and seats too few for the complete guest party', () => {
+  const group = fixture(3);
+  group.tables = [
+    group.tables[0],
+    { id: 'small', name: 'Seven remaining seats', capacity: 7 },
+    { id: 'exact', name: 'Eight remaining seats', capacity: 8 },
+    group.tables[1]
+  ];
+  const { page } = createPage(group);
+  page.openAssignment(event({ guest: 'guest-b' }));
+  const choices = page.state.tableOptions.filter(option => option.id);
+  assert.deepEqual(choices.map(option => option.id), ['exact', 'table-b']);
+  assert.deepEqual(choices.map(option => option.available), [8, 12]);
+  page.selectTable({ detail: { value: page.state.tableOptions.findIndex(option => option.id === 'exact') } });
+  assert.equal(page.state.canAssign, true, 'A party fits when the remaining seats exactly match its size');
+});
+
+test('selecting a larger family recalculates tables and clears a destination that no longer fits', () => {
+  const group = fixture();
+  group.guests.push({ ...group.guests[1], id: 'small-family', name: 'Small family', partySize: 2 });
+  const { page } = createPage(group);
+  page.openAssignment(event({ guest: 'small-family', table: 'table-a' }));
+  assert.equal(page.state.canAssign, true);
+  page.selectGuest({ detail: { value: page.state.guestOptions.findIndex(option => option.id === 'guest-b') } });
+  assert.equal(page.state.assignGuestId, 'guest-b');
+  assert.equal(page.state.assignTableId, '');
+  assert.equal(page.state.canAssign, false);
+  assert.deepEqual(page.state.tableOptions.filter(option => option.id).map(option => option.id), ['table-b']);
+  page.selectTable(event({ id: 'table-b' }));
+  assert.equal(page.state.assignTableId, 'table-b');
+  assert.equal(page.state.canAssign, true);
+});
+
+test('moving a seated family locks the guest and offers only other suitable tables', () => {
+  const { page } = createPage(fixture(3));
+  page.openAssignment(event({ guest: 'guest-a', table: 'table-a' }));
+  assert.equal(page.state.assignmentMode, 'move');
+  assert.deepEqual(page.state.guestOptions.filter(option => option.id).map(option => option.id), ['guest-a']);
+  assert.equal(page.state.assignGuestId, 'guest-a');
+  assert.equal(page.state.assignTableId, '', 'The original table is not a move destination');
+  assert.deepEqual(page.state.tableOptions.filter(option => option.id).map(option => option.id), ['table-b']);
+  page.selectGuest({ detail: { value: 0 } });
+  assert.equal(page.state.assignGuestId, 'guest-a', 'Move mode cannot change to a different family');
+  page.selectTable(event({ id: 'table-b' }));
+  assert.equal(page.state.canAssign, true);
+});
+
+test('invalid guests or full destinations never silently fall back to another valid choice', async () => {
+  const { page, calls } = createPage(fixture(3));
+  page.openAssignment(event({ guest: 'missing-guest', table: 'table-b' }));
+  assert.equal(page.state.assignGuestId, '');
+  assert.equal(page.state.canAssign, false);
+  await page.assign();
+  page.openAssignment(event({ guest: 'guest-b', table: 'table-a' }));
+  assert.equal(page.state.assignTableId, '');
+  assert.equal(page.state.canAssign, false);
+  await page.assign();
+  assert.equal(calls.length, 0);
+});
+
+test('empty candidate lists stay safe when every table is full or every guest is seated', async () => {
+  const group = fixture(3);
+  group.tables[1].capacity = 8;
+  group.guests.push({ ...group.guests[1], id: 'occupants-b', name: 'Seated family', tableId: 'table-b' });
+  const { page, calls } = createPage(group);
+  page.openAssignment(event({ guest: 'guest-b' }));
+  assert.deepEqual(page.state.tableOptions.filter(option => option.id), []);
+  assert.equal(page.state.canAssign, false);
+  assert.ok(page.state.assignmentHint);
+  await page.assign();
+  assert.equal(calls.length, 0);
+  group.guests = group.guests.filter(guest => guest.id !== 'guest-b');
+  page.openAssignment(event());
+  assert.deepEqual(page.state.guestOptions.filter(option => option.id), []);
+  assert.equal(page.state.canAssign, false);
+  group.tables = [];
+  page.openAssignment(event({ guest: 'guest-a' }));
+  assert.equal(page.state.assignmentMode, 'new');
+  assert.deepEqual(page.state.tableOptions.filter(option => option.id), []);
+  assert.equal(page.state.canAssign, false);
+});
+
+test('refresh and save revalidation reject a guest seated elsewhere or a newly full target', async () => {
+  const { page, group, calls } = createPage();
+  page.openAssignment(event({ guest: 'guest-b', table: 'table-b' }));
+  assert.equal(page.state.canAssign, true);
+  group.guests[1].tableId = 'table-a';
+  group.revision++;
+  await page.load();
+  assert.equal(page.state.assignmentMode, 'new', 'A pending assignment must not become an implicit move');
+  assert.equal(page.state.assignGuestId, '');
+  assert.equal(page.state.canAssign, false);
+  await page.assign();
+  assert.equal(calls.length, 0);
+
+  group.guests[1].tableId = '';
+  page.openAssignment(event({ guest: 'guest-b', table: 'table-b' }));
+  group.guests.push({ ...group.guests[0], id: 'new-occupants', partySize: 12, tableId: 'table-b' });
+  await page.assign();
+  assert.equal(page.state.assignTableId, '');
+  assert.equal(page.state.canAssign, false);
+  assert.equal(calls.length, 0, 'Capacity is rechecked at save time even without a page refresh');
+});
+
 test('table capacity supports presets and custom values while preventing shrink overflow', async () => {
   const { page, calls } = createPage();
   page.openTable(event());

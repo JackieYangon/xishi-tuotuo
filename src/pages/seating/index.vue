@@ -92,15 +92,37 @@
   </view>
 </view>
 
-<view v-if="state.assignmentOpen" class="modal-mask" @tap.stop="closeAssignment" @touchmove.stop="stopTap">
-  <view class="modal-sheet" @tap.stop="stopTap">
-    <view class="modal-heading"><view class="modal-title">安排亲友入座</view><button class="close-modal" @tap="closeAssignment" :disabled="(state.saving)">×</button></view>
-    <view class="field"><view class="label">宾客 / 家庭</view><picker :range="(state.guestOptions)" range-key="label" :value="(state.guestIndex)" @change="selectGuest" :disabled="(state.saving)"><view class="input picker-input">{{ state.guestOptions[state.guestIndex].label }}<text>⌄</text></view></picker></view>
-    <view class="field"><view class="label">安排到哪一桌</view><picker :range="(state.tableOptions)" range-key="label" :value="(state.tableIndex)" @change="selectTable" :disabled="(state.saving)"><view class="input picker-input">{{ state.tableOptions[state.tableIndex].label }}<text>⌄</text></view></picker></view>
-    <view :class="'assignment-note ' + (state.canAssign ? 'assignment-ready' : '')">{{ state.assignmentHint }}</view>
-    <view v-if="state.assignmentError" class="form-error">{{ state.assignmentError }}</view>
-    <button v-if="state.assignmentConflict" class="button-secondary reload-button" data-kind="assignment" @tap="reloadDraft" :disabled="(state.saving)">重新载入最新记录</button>
-    <view class="modal-actions"><button class="button-secondary cancel-button" @tap="closeAssignment" :disabled="(state.saving)">取消</button><button class="button-primary confirm-button" @tap="assign" :loading="(state.saving)" :disabled="(state.saving || !state.canAssign || state.assignmentConflict)">确认入座</button></view>
+<view v-if="state.assignmentOpen" class="modal-mask assignment-mask" @tap.stop="closeAssignment" @touchmove.stop="stopTap">
+  <view class="modal-sheet assignment-sheet" @tap.stop="stopTap">
+    <view class="modal-heading assignment-heading"><view class="modal-title">{{ state.assignmentMode === 'move' ? '为亲友换桌' : '安排亲友入座' }}</view><button class="close-modal" @tap="closeAssignment" :disabled="(state.saving)">×</button></view>
+    <scroll-view class="assignment-scroll" scroll-y enhanced :show-scrollbar="false">
+      <view class="assignment-body">
+        <view class="field">
+          <view class="label">宾客 / 家庭</view>
+          <view v-if="state.assignmentMode === 'move'" class="input assignment-guest-value">
+            <view class="assignment-guest-name">{{ state.assignmentGuestName }}</view><view class="assignment-guest-detail">{{ state.assignmentGuestDetail }}</view>
+          </view>
+          <picker v-else class="assignment-guest-picker" :range="state.guestOptions" range-key="label" :value="state.guestIndex" @change="selectGuest" :disabled="state.saving || state.assignmentConflict || state.guestOptions.length <= 1">
+            <view class="input picker-input assignment-guest-value"><view class="assignment-guest-copy"><view class="assignment-guest-name">{{ state.assignmentGuestName }}</view><view v-if="state.assignmentGuestDetail" class="assignment-guest-detail">{{ state.assignmentGuestDetail }}</view></view><text class="assignment-picker-arrow">⌄</text></view>
+          </picker>
+        </view>
+        <view class="field">
+          <view class="label">安排到哪一桌</view>
+          <view class="form-note assignment-filter-note">{{ state.assignGuestId ? '只显示能容纳这组亲友的圆桌，同行亲友不拆桌。' : '只显示有空位的圆桌，选择亲友后会按同行人数筛选。' }}</view>
+          <view v-if="!state.availableTables.length" class="assignment-empty">{{ state.tableEmptyHint }}</view>
+          <button v-for="table in state.availableTables" :key="table.id" :class="'table-choice ' + (state.assignTableId === table.id ? 'table-choice-selected' : '')" :data-id="table.id" @tap="selectTable" :disabled="state.saving || state.assignmentConflict" :aria-label="table.label">
+            <view class="table-choice-name">{{ table.name }}</view>
+            <view class="table-choice-availability">还可安排 <text>{{ table.available }}</text> 人</view>
+            <view class="table-choice-details">共 {{ table.capacity }} 个座位 · 已安排 {{ table.occupied }} 人</view>
+            <view class="table-choice-mark">{{ state.assignTableId === table.id ? '✓' : '' }}</view>
+          </button>
+        </view>
+        <view :class="'assignment-note ' + (state.canAssign ? 'assignment-ready' : '')">{{ state.assignmentHint }}</view>
+        <view v-if="state.assignmentError" class="form-error">{{ state.assignmentError }}</view>
+        <button v-if="state.assignmentConflict" class="button-secondary reload-button" data-kind="assignment" @tap="reloadDraft" :disabled="(state.saving)">重新载入最新记录</button>
+      </view>
+    </scroll-view>
+    <view class="modal-actions assignment-actions"><button class="button-secondary cancel-button" @tap="closeAssignment" :disabled="(state.saving)">取消</button><button class="button-primary confirm-button" @tap="assign" :loading="(state.saving)" :disabled="(state.saving || !state.canAssign || state.assignmentConflict)">{{ state.assignmentMode === 'move' ? '确认换桌' : '确认入座' }}</button></view>
   </view>
 </view>
 
@@ -143,7 +165,8 @@ export default defineComponent({
     loading: true, error: '', noGroup: false, tables: [], waiting: [], waitingCount: 0,
     seatsCount: 0, assignedCount: 0, totalCapacity: 0, query: '', saving: false,
     tableEditor: false, tableId: '', tableName: '', capacityMode: '10', customCapacity: '', tableError: '', tableConflict: false,
-    assignmentOpen: false, assignGuestId: '', assignTableId: '', guestOptions: [], tableOptions: [],
+    assignmentOpen: false, assignmentMode: 'new', assignGuestId: '', assignTableId: '', guestOptions: [], tableOptions: [], availableTables: [],
+    assignmentGuestName: '', assignmentGuestDetail: '', tableEmptyHint: '',
     guestIndex: 0, tableIndex: 0, assignmentHint: '', assignmentError: '', assignmentConflict: false, canAssign: false
   } as Record<string, any>, runtime: {} as Record<string, any> }; },
 onShow() { this.load(); },
@@ -164,7 +187,7 @@ async load() {
     catch (error) {
         if (['GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND', 'NO_GROUP'].includes(error.code)) {
             this.runtime._group = null;
-            updateState(this.state, { tables: [], waiting: [], tableEditor: false, assignmentOpen: false, tableName: '', guestOptions: [], tableOptions: [] });
+            updateState(this.state, { tables: [], waiting: [], tableEditor: false, assignmentOpen: false, tableName: '', guestOptions: [], tableOptions: [], availableTables: [], assignGuestId: '', assignTableId: '', assignmentGuestName: '', assignmentGuestDetail: '', canAssign: false });
         }
         updateState(this.state, { error: error.message || '暂时无法读取排桌信息', noGroup: ['NO_GROUP', 'GROUP_DELETED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.code) });
     }
@@ -296,51 +319,71 @@ openAssignment(event) {
     if (this.state.saving || !this.runtime._group)
         return;
     const dataset = event.currentTarget.dataset;
+    const guest = (this.runtime._group.guests || []).find(item => item.id === dataset.guest);
+    const moving = guest && guest.attendance !== 'no' && (this.runtime._group.tables || []).some(table => table.id === guest.tableId);
+    this.runtime._movingGuestId = moving ? guest.id : '';
     this.runtime._assignmentRevision = this.runtime._revision;
-    updateState(this.state, { assignmentOpen: true, assignGuestId: dataset.guest || '', assignTableId: dataset.table || '', assignmentError: '', assignmentConflict: false });
+    updateState(this.state, { assignmentOpen: true, assignmentMode: moving ? 'move' : 'new', assignGuestId: dataset.guest || '', assignTableId: dataset.table || '', assignmentError: '', assignmentConflict: false });
     this.renderAssignment();
 },
 renderAssignment() {
     const group = this.runtime._group;
-    const eligible = (group.guests || []).filter(guest => guest.attendance !== 'no');
+    if (!group) return;
+    const tables = group.tables || [];
+    const tableIds = tables.map(table => table.id);
+    const moving = this.state.assignmentMode === 'move';
+    const eligible = (group.guests || []).filter(guest => guest.attendance !== 'no' && (moving
+        ? guest.id === this.runtime._movingGuestId
+        : !guest.tableId || !tableIds.includes(guest.tableId)));
     const guestOptions = [{ id: '', label: '请选择宾客 / 家庭' }].concat(eligible.map(guest => {
-        const table = (group.tables || []).find(item => item.id === guest.tableId);
+        const table = tables.find(item => item.id === guest.tableId);
         return { id: guest.id, label: guest.name + ' · ' + partySize(guest) + ' 人' + (table ? ' · ' + table.name : ' · 未排桌') };
     }));
     const guest = eligible.find(item => item.id === this.state.assignGuestId);
-    const tableOptions = [{ id: '', label: '请选择圆桌' }].concat((group.tables || []).map(table => {
-        const occupied = people(tableGuests(group, table.id).filter(item => !guest || item.id !== guest.id));
-        return { id: table.id, label: table.name + ' · 可安排 ' + (table.capacity - occupied) + ' 人', available: table.capacity - occupied };
-    }));
-    const table = (group.tables || []).find(item => item.id === this.state.assignTableId);
+    const assignGuestId = guest ? guest.id : '';
+    const availableTables = tables.map(table => {
+        const occupied = people(tableGuests(group, table.id));
+        const available = Math.max(0, table.capacity - occupied);
+        return { id: table.id, name: table.name, capacity: table.capacity, occupied, available, label: table.name + ' · 还可安排 ' + available + ' 人' };
+    }).filter(table => table.available > 0 && (!guest || (table.available >= partySize(guest) && table.id !== guest.tableId)));
+    const tableOptions = [{ id: '', label: '请选择圆桌' }].concat(availableTables);
+    const table = availableTables.find(item => item.id === this.state.assignTableId);
+    const assignTableId = table ? table.id : '';
     let hint = '按宾客名单中的同行人数整组入座，亲友会坐在同一桌。';
     let canAssign = false;
     if (guest && table) {
-        const available = table.capacity - people(tableGuests(group, table.id).filter(item => item.id !== guest.id));
-        if (guest.tableId === table.id)
-            hint = '这组亲友已经安排在本桌。';
-        else if (partySize(guest) > available)
-            hint = '这组亲友共 ' + partySize(guest) + ' 人，本桌只剩 ' + available + ' 个空位，请选择其他桌。';
-        else {
-            hint = '将把 ' + guest.name + ' 共 ' + partySize(guest) + ' 人安排到“' + table.name + '”。';
-            canAssign = true;
-        }
+        hint = '将把 ' + guest.name + ' 共 ' + partySize(guest) + ' 人安排到“' + table.name + '”，安排后还剩 ' + (table.available - partySize(guest)) + ' 个空位。';
+        canAssign = true;
     }
+    else if (!eligible.length) hint = moving ? '这组亲友已被删除或标记不出席，请重新载入名单。' : '暂无未排座的亲友，已安排和不出席的宾客不会显示。';
+    else if (guest) hint = '已选 ' + guest.name + '，共 ' + partySize(guest) + ' 人，请选择可容纳整组亲友的圆桌。';
+    const currentTable = guest && tables.find(item => item.id === guest.tableId);
+    const tableEmptyHint = !tables.length ? '还没有圆桌，请先添加圆桌。' : guest
+        ? '暂无能容纳这组 ' + partySize(guest) + ' 人的' + (moving ? '其他' : '') + '圆桌，请添加圆桌或调整现有排座。'
+        : '暂无有空位的圆桌，请添加圆桌或调整现有排座。';
     updateState(this.state, {
-        guestOptions, tableOptions, guestIndex: Math.max(0, guestOptions.findIndex(item => item.id === this.state.assignGuestId)),
-        tableIndex: Math.max(0, tableOptions.findIndex(item => item.id === this.state.assignTableId)), assignmentHint: hint, canAssign
+        assignGuestId, assignTableId, guestOptions, tableOptions, availableTables,
+        assignmentGuestName: guest ? guest.name : moving ? '原宾客已无法安排' : '请选择未排座的宾客 / 家庭',
+        assignmentGuestDetail: guest ? partySize(guest) + ' 人' + (moving && currentTable ? ' · 原桌：' + currentTable.name : ' · 未排桌') : '',
+        guestIndex: Math.max(0, guestOptions.findIndex(item => item.id === assignGuestId)),
+        tableIndex: Math.max(0, tableOptions.findIndex(item => item.id === assignTableId)), assignmentHint: hint, tableEmptyHint, canAssign
     });
 },
 selectGuest(event) {
-    if (this.state.saving)
+    if (this.state.saving || this.state.assignmentConflict || this.state.assignmentMode === 'move')
         return;
-    updateState(this.state, { assignGuestId: this.state.guestOptions[Number(event.detail.value)].id, assignmentError: '' });
+    const option = this.state.guestOptions[Number(event.detail.value)];
+    if (!option) return;
+    updateState(this.state, { assignGuestId: option.id, assignmentError: '' });
     this.renderAssignment();
 },
 selectTable(event) {
-    if (this.state.saving)
+    if (this.state.saving || this.state.assignmentConflict)
         return;
-    updateState(this.state, { assignTableId: this.state.tableOptions[Number(event.detail.value)].id, assignmentError: '' });
+    const id = event.currentTarget?.dataset?.id;
+    const option = id !== undefined ? this.state.tableOptions.find(table => table.id === id) : this.state.tableOptions[Number(event.detail?.value)];
+    if (!option) return;
+    updateState(this.state, { assignTableId: option.id, assignmentError: '' });
     this.renderAssignment();
 },
 closeAssignment() { if (!this.state.saving)
@@ -535,6 +578,27 @@ goGroup() { wx.navigateTo({ url: '/pages/group/index' }); }
 .picker-input text { color: #a78e7c; margin-left: 14rpx; }
 .assignment-note { padding: 22rpx; color: #a0806a; background: #f8f0e6; border-radius: 14rpx; font-size: 25rpx; line-height: 1.8; }
 .assignment-ready { color: #617954; background: #f0f3e9; }
+.assignment-sheet { max-height: 92vh; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.assignment-heading { flex-shrink: 0; margin: 0; padding: 30rpx 36rpx 24rpx; border-bottom: 1rpx solid #eee1d5; }
+.assignment-scroll { height: 58vh; min-height: 0; }
+.assignment-body { padding: 4rpx 36rpx 28rpx; }
+.assignment-guest-value { width: 100%; min-height: 112rpx; }
+.assignment-guest-copy { flex: 1; min-width: 0; }
+.assignment-guest-name { color: #5e433e; font-size: 28rpx; line-height: 1.7; white-space: normal; word-break: break-all; }
+.assignment-guest-detail { color: #927564; font-size: 24rpx; line-height: 1.7; margin-top: 6rpx; word-break: break-all; }
+.assignment-picker-arrow { flex-shrink: 0; }
+.assignment-filter-note { margin-bottom: 18rpx; }
+.assignment-empty { padding: 24rpx; background: #f7f0e9; border-radius: 16rpx; color: #967869; font-size: 25rpx; line-height: 1.8; }
+.table-choice { position: relative; width: 100%; margin: 0 0 18rpx; padding: 22rpx 24rpx; border: 2rpx solid #eaded3; border-radius: 18rpx; text-align: left; background: #fffaf5; font-weight: 400; }
+.table-choice::after { border: none; }
+.table-choice-selected { background: #f6e9e7; border-color: #a45b67; }
+.table-choice-name { color: #62423c; font-size: 28rpx; line-height: 1.7; padding-right: 46rpx; white-space: normal; word-break: break-all; }
+.table-choice-availability { color: #627a54; font-size: 27rpx; line-height: 1.7; margin-top: 8rpx; }
+.table-choice-availability text { font-size: 34rpx; font-weight: 600; }
+.table-choice-details { color: #9a8070; font-size: 23rpx; line-height: 1.7; margin-top: 4rpx; }
+.table-choice-mark { position: absolute; top: 27rpx; right: 24rpx; width: 34rpx; height: 34rpx; border: 2rpx solid #dbc5b8; border-radius: 50%; line-height: 30rpx; text-align: center; color: #984354; font-size: 23rpx; }
+.table-choice-selected .table-choice-mark { border-color: #984354; background: #984354; color: white; }
+.assignment-actions { flex-shrink: 0; margin: 0; padding: 22rpx 36rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #eee1d5; }
 .reload-button { margin-top: 18rpx; }
 
 </style>

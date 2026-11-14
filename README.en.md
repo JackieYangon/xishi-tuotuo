@@ -1,7 +1,7 @@
 <h1 align="center">Xishi Tuotuo</h1>
 <!-- badges:start -->
 <p align="center">
-  <img alt="version 2.3.0" src="https://img.shields.io/badge/version-2.3.0-00866a?style=flat-square" />
+  <img alt="version 2.3.1" src="https://img.shields.io/badge/version-2.3.1-00866a?style=flat-square" />
   <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-0088cc?style=flat-square" /></a>
   <img alt="WeChat Mini Program" src="https://img.shields.io/badge/WeChat-Mini_Program-07c160?style=flat-square&amp;logo=wechat&amp;logoColor=white" />
   <a href="https://uniapp.dcloud.net.cn/"><img alt="framework uni-app" src="https://img.shields.io/badge/framework-uni--app-2b9939?style=flat-square" /></a>
